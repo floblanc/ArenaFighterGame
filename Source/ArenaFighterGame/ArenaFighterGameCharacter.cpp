@@ -21,7 +21,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw =  false;
 	bUseControllerRotationRoll = false;
 
 	// Configure character movement
