@@ -49,12 +49,18 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	// ----myCode--- PrimaryActorTick.bCanEverTick = true;
+	// ----myCode--- bUseControllerRotationYaw = false;
+	// ----myCode--- GetCharacterMovement()->bOrientRotationToMovement = true;
+	// ----myCode--- GetCharacterMovement()->MaxWalkSpeed = 150.f;
 }
 
 void AArenaFighterGameCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
+	// ----myCode--- Posture = EPosture::UP;
 
 	//Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -65,6 +71,12 @@ void AArenaFighterGameCharacter::BeginPlay()
 		}
 	}
 }
+
+// ----myCode-- void AArenaFighterGameCharacter::Tick(float DeltaTime)
+// ----myCode-- {
+// ----myCode-- 	Super::Tick(DeltaTime);
+// ----myCode-- 	UpdatePosture();
+// ----myCode-- }
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -85,7 +97,26 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
 
 	}
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	// ----myCode-- PlayerInputComponent->BindAxis("MoveForward", this, &AArenaFighterGameCharacter::MoveForward);
+	// ----myCode-- PlayerInputComponent->BindAxis("MoveRight", this, &AArenaFighterGameCharacter::MoveRight);
+	// ----myCode-- PlayerInputComponent->BindAxis("PostureForward", this, &AArenaFighterGameCharacter::HandlePostureInputY);
+	// ----myCode-- PlayerInputComponent->BindAxis("PostureRight", this, &AArenaFighterGameCharacter::HandlePostureInputX);
+	// ----myCode-- 
+	// ----myCode-- PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	// ----myCode-- PlayerInputComponent->BindAction("LightAttack", IE_Pressed, this, &AArenaFighterGameCharacter::LightAttack);
+	// ----myCode-- PlayerInputComponent->BindAction("HeavyAttack", IE_Pressed, this, &AArenaFighterGameCharacter::HeavyAttack);
+	// ----myCode-- PlayerInputComponent->BindAction("SpecialAttack", IE_Pressed, this, &AArenaFighterGameCharacter::SpecialAttack);
+	// ----myCode-- PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &AArenaFighterGameCharacter::Dash);
+	// ----myCode-- 
+	// ----myCode-- PlayerInputComponent->BindAction("Guard", IE_Pressed, this, &AArenaFighterGameCharacter::StartGuarding);
+	// ----myCode-- PlayerInputComponent->BindAction("Guard", IE_Released, this, &AArenaFighterGameCharacter::StopGuarding);
+	// ----myCode-- 
+	// ----myCode-- PlayerInputComponent->BindAction("BreakGuard", IE_Pressed, this, &AArenaFighterGameCharacter::BreakGuard);
+	// ----myCode-- 
+	// ----myCode-- PlayerInputComponent->BindAction("Run", IE_Pressed, this, &AArenaFighterGameCharacter::StartRunning);
+	// ----myCode-- // Bind other inputs to the corresponding actions
 }
 
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
