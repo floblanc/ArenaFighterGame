@@ -24,6 +24,10 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	bUseControllerRotationYaw =  false;
 	bUseControllerRotationRoll = false;
 
+	bIsRunning = false;
+	WalkingSpeed = 400.f;
+	RunningSpeed = 800.f;
+
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -31,8 +35,8 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 700.f;
-	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	GetCharacterMovement()->AirControl = 0.35f; 
+	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 
@@ -53,7 +57,6 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	// ----myCode--- PrimaryActorTick.bCanEverTick = true;
 	// ----myCode--- bUseControllerRotationYaw = false;
 	// ----myCode--- GetCharacterMovement()->bOrientRotationToMovement = true;
-	// ----myCode--- GetCharacterMovement()->MaxWalkSpeed = 150.f;
 }
 
 void AArenaFighterGameCharacter::BeginPlay()
@@ -92,10 +95,15 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Move);
-
+		
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
 
+		//Running
+		EnhancedInputComponent->BindAction(RunAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::StartRunning);
+		
+		// Stop Running when stop moving
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::StopRunning);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
@@ -155,6 +163,29 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AArenaFighterGameCharacter::StartRunning()
+{
+	// Check if character is already running
+	if (bIsRunning)
+	{
+		StopRunning();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("START RUNNING\n"));
+		bIsRunning = true;
+		GetCharacterMovement()->MaxWalkSpeed = RunningSpeed; // Set running speed
+	}
+}
 
+void AArenaFighterGameCharacter::StopRunning()
+{
+	bIsRunning = false;
+	UE_LOG(LogTemp, Warning, TEXT("STOP RUNNING\n"));
+	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
+}
 
-
+//void AArenaFighterGameCharacter::Dash()
+//{
+//	GetCharacterMovement()->
+//}
