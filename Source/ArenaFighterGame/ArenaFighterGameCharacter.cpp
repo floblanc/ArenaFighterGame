@@ -21,12 +21,15 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw =  false;
+	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
 	bIsRunning = false;
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
+
+	DashDistance = 1500.0f;
+	DashTimeout = 0.5f;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
@@ -102,8 +105,11 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		//Running
 		EnhancedInputComponent->BindAction(RunAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::StartRunning);
 		
-		// Stop Running when stop moving
+		//Stop Running when stop moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::StopRunning);
+		
+		//Dash detection
+		EnhancedInputComponent->BindAction(TapMoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::TryToDash);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
@@ -134,6 +140,9 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
+		//try to Dash
+		TryToDash(MovementVector);
+
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
@@ -181,11 +190,51 @@ void AArenaFighterGameCharacter::StartRunning()
 void AArenaFighterGameCharacter::StopRunning()
 {
 	bIsRunning = false;
-	UE_LOG(LogTemp, Warning, TEXT("STOP RUNNING\n"));
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
 }
 
-//void AArenaFighterGameCharacter::Dash()
-//{
-//	GetCharacterMovement()->
-//}
+void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
+{
+	// Get the current rotation of the character
+	FRotator CurrentRotation = GetActorRotation();
+
+	// Determine the closest direction
+	float Angle = FMath::RadiansToDegrees(FMath::Atan2(MoveDirection.Y, MoveDirection.X));
+	Angle = FMath::RoundToFloat(Angle / 90.0f) * 90.0f;
+
+	// Create a rotation corresponding to the nearest direction
+	FRotator DashRotation = FRotator(0.0f, Angle, 0.0f);
+
+	// Create a vector that represents the direction in which to dash
+	FVector DashVector = DashRotation.RotateVector(FVector::ForwardVector) * DashDistance;
+
+	// Move the character
+	GetCharacterMovement()->AddImpulse(DashVector, true);
+}
+
+void AArenaFighterGameCharacter::TryToDash(FVector2D MovementVector)
+{
+	MovementVector.Normalize();
+	if (MovementVector.Equals(LastMoveDirection, 0.1f)) // Adjust the tolerance as needed
+	{
+		DashCounter++;
+		if (DashCounter == 2)
+		{
+			Dash(MovementVector);
+			UE_LOG(LogTemp, Warning, TEXT("Dash Done!!\n"));
+
+		}
+	}
+	else
+	{
+		LastMoveDirection = MovementVector;
+		UE_LOG(LogTemp, Warning, TEXT("Double Tap too far from each other!!\n"));
+	}
+	GetWorld()->GetTimerManager().SetTimer(DashTimerHandle, this, &AArenaFighterGameCharacter::ResetDashCounter, DashTimeout);
+}
+
+void AArenaFighterGameCharacter::ResetDashCounter()
+{
+	DashCounter = 0;
+	UE_LOG(LogTemp, Warning, TEXT("Counter Reset!!\n"));
+}

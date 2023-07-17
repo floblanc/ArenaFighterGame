@@ -55,7 +55,7 @@ class AArenaFighterGameCharacter : public ACharacter
 
 	/** Dash Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputAction* DashAction;
+	class UInputAction* TapMoveAction;
 
 
 public:
@@ -74,7 +74,11 @@ public:
 	void LightAttack();
 	void HeavyAttack();
 	void SpecialAttack();
-	void Dash();
+	
+	void Dash(const FVector2D& MoveDirection);
+	void TryToDash(FVector2D MovementVector);
+	void ResetDashCounter();
+	
 	void Guard();
 	void BreakGuard();
 
@@ -109,6 +113,19 @@ private:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsRunning;
+
+	// Dash variables
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	float DashDistance;
+
+	FTimerHandle DashTimerHandle;
+
+	FVector2D LastMoveDirection;
+
+	int DashCounter;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		float DashTimeout;
 
 	UPROPERTY()
 		bool bIsGuarding;
