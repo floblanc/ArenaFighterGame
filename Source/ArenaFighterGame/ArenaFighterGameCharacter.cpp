@@ -211,13 +211,12 @@ void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
 
 void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& Value)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Double Tap too far from each other!!\n"));
-	
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	MovementVector.Normalize();
-	if (MovementVector.Equals(LastMoveDirection, 0.1f)) // Adjust the tolerance as needed
+	UE_LOG(LogTemp, Warning, TEXT("Distance entre les 2 = %f\n"), FVector2D::CrossProduct(MovementVector , LastMoveDirection));
+	if (MovementVector.Equals(LastMoveDirection, 0.6f)) // Adjust the tolerance as needed
 	{
 		DashCounter++;
 		if (DashCounter == 2)
