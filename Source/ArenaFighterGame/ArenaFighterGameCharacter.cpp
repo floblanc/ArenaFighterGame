@@ -109,7 +109,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::StopRunning);
 		
 		//Dash detection
-		EnhancedInputComponent->BindAction(TapMoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::TryToDash);
+		EnhancedInputComponent->BindAction(TapMoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::CheckDoubleTapToDash);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
@@ -209,7 +209,7 @@ void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
 	GetCharacterMovement()->AddImpulse(DashVector, true);
 }
 
-void AArenaFighterGameCharacter::TryToDash(const FInputActionValue& Value)
+void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& Value)
 {
 	UE_LOG(LogTemp, Warning, TEXT("Double Tap too far from each other!!\n"));
 	
