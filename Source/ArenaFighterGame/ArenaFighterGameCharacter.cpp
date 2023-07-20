@@ -140,9 +140,6 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		//try to Dash
-		TryToDash(MovementVector);
-
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
@@ -212,8 +209,13 @@ void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
 	GetCharacterMovement()->AddImpulse(DashVector, true);
 }
 
-void AArenaFighterGameCharacter::TryToDash(FVector2D MovementVector)
+void AArenaFighterGameCharacter::TryToDash(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Double Tap too far from each other!!\n"));
+	
+	// input is a Vector2D
+	FVector2D MovementVector = Value.Get<FVector2D>();
+
 	MovementVector.Normalize();
 	if (MovementVector.Equals(LastMoveDirection, 0.1f)) // Adjust the tolerance as needed
 	{

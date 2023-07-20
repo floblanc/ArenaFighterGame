@@ -76,7 +76,7 @@ public:
 	void SpecialAttack();
 	
 	void Dash(const FVector2D& MoveDirection);
-	void TryToDash(FVector2D MovementVector);
+	void TryToDash(const FInputActionValue& Value);
 	void ResetDashCounter();
 	
 	void Guard();
