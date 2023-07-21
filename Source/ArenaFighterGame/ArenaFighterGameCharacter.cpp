@@ -215,8 +215,11 @@ void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& V
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	MovementVector.Normalize();
-	UE_LOG(LogTemp, Warning, TEXT("Distance entre les 2 = %f\n"), FVector2D::CrossProduct(MovementVector , LastMoveDirection));
-	if (MovementVector.Equals(LastMoveDirection, 0.6f)) // Adjust the tolerance as needed
+	UE_LOG(LogTemp, Warning, TEXT("MovementVector.X = %f | MovementVector.Y = %f\n"), MovementVector.X , MovementVector.Y);
+	UE_LOG(LogTemp, Warning, TEXT("LastMoveDirection.X = %f | LastMoveDirection.Y = %f\n"), LastMoveDirection.X , LastMoveDirection.Y);
+	UE_LOG(LogTemp, Warning, TEXT("Distance entre les 2 = %f\n"), FVector2D::Distance(MovementVector , LastMoveDirection));
+	UE_LOG(LogTemp, Warning, TEXT("Distance carré entre les 2 = %f\n"), FVector2D::DistSquared(MovementVector , LastMoveDirection));
+	if (MovementVector.Equals(LastMoveDirection, 0.5f)) // Adjust the tolerance as needed
 	{
 		DashCounter++;
 		if (DashCounter == 2)
