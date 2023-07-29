@@ -197,13 +197,18 @@ void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
 
 	// Determine the closest direction
 	float Angle = FMath::RadiansToDegrees(FMath::Atan2(MoveDirection.Y, MoveDirection.X));
+	
+	UE_LOG(LogTemp, Warning, TEXT("Raw Angle = %f\n"), Angle);
+
 	Angle = FMath::RoundToFloat(Angle / 90.0f) * 90.0f;
+
+	UE_LOG(LogTemp, Warning, TEXT("Rounded Angle = %f\n"), Angle);
 
 	// Create a rotation corresponding to the nearest direction
 	FRotator DashRotation = FRotator(0.0f, Angle, 0.0f);
 
 	// Create a vector that represents the direction in which to dash
-	FVector DashVector = DashRotation.RotateVector(FVector::ForwardVector) * DashDistance;
+	FVector DashVector = DashRotation.RotateVector(GetActorForwardVector()) * DashDistance;
 
 	// Move the character
 	GetCharacterMovement()->AddImpulse(DashVector, true);
@@ -215,18 +220,19 @@ void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& V
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
 	MovementVector.Normalize();
+	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------------------------\n"));
 	UE_LOG(LogTemp, Warning, TEXT("MovementVector.X = %f | MovementVector.Y = %f\n"), MovementVector.X , MovementVector.Y);
 	UE_LOG(LogTemp, Warning, TEXT("LastMoveDirection.X = %f | LastMoveDirection.Y = %f\n"), LastMoveDirection.X , LastMoveDirection.Y);
 	UE_LOG(LogTemp, Warning, TEXT("Distance entre les 2 = %f\n"), FVector2D::Distance(MovementVector , LastMoveDirection));
 	UE_LOG(LogTemp, Warning, TEXT("Distance carré entre les 2 = %f\n"), FVector2D::DistSquared(MovementVector , LastMoveDirection));
-	if (MovementVector.Equals(LastMoveDirection, 0.5f)) // Adjust the tolerance as needed
+	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------------------------\n"));
+	if (MovementVector.Equals(LastMoveDirection, 0.80f)) // Adjust the tolerance as needed
 	{
 		DashCounter++;
 		if (DashCounter == 2)
 		{
 			Dash(MovementVector);
 			UE_LOG(LogTemp, Warning, TEXT("Dash Done!!\n"));
-
 		}
 	}
 	else
