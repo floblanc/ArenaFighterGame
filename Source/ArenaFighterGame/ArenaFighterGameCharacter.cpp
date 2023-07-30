@@ -192,27 +192,55 @@ void AArenaFighterGameCharacter::StopRunning()
 
 void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
 {
-	// Get the current rotation of the character
-	FRotator CurrentRotation = GetActorRotation();
+	if (Controller != nullptr)
+	{
+		// Round the input to get a unit vector
+		FVector2D RoundedVector = MoveDirection.GetSafeNormal();
 
-	// Determine the closest direction
-	float Angle = FMath::RadiansToDegrees(FMath::Atan2(MoveDirection.Y, MoveDirection.X));
-	
-	UE_LOG(LogTemp, Warning, TEXT("Raw Angle = %f\n"), Angle);
+		// Find out which way is forward and right
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-	Angle = FMath::RoundToFloat(Angle / 90.0f) * 90.0f;
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-	UE_LOG(LogTemp, Warning, TEXT("Rounded Angle = %f\n"), Angle);
+		// Construct the dash vector using the controller's forward and right vectors
+		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
+		DashVector.Normalize();
+		DashVector *= DashDistance;
 
-	// Create a rotation corresponding to the nearest direction
-	FRotator DashRotation = FRotator(0.0f, Angle, 0.0f);
-
-	// Create a vector that represents the direction in which to dash
-	FVector DashVector = DashRotation.RotateVector(GetActorForwardVector()) * DashDistance;
-
-	// Move the character
-	GetCharacterMovement()->AddImpulse(DashVector, true);
+		// Apply the impulse
+		GetCharacterMovement()->AddImpulse(DashVector, true);
+	}
 }
+
+//void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
+//{
+//	if (Controller != nullptr)
+//	{
+//		FVector2D RoundedVector = MoveDirection.RoundToVector();
+//	
+//		FVector RoundedDashVector(RoundedVector.X, RoundedVector.Y, 0.0f);
+//
+//		// Create a vector that represents the direction in which to dash
+//		FVector DashVector = RoundedDashVector * DashDistance;
+//
+//		// find out which way is forward
+//		const FRotator Rotation = Controller->GetControlRotation();
+//		const FRotator YawRotation(0, Rotation.Yaw, 0);
+//
+//		// get forward vector
+//		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+//
+//		// get right vector 
+//		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+//
+//		DashVector += ForwardDirection + RightDirection;
+//
+//		// Move the character
+//		GetCharacterMovement()->AddImpulse(DashVector, true);
+//	}
+//}
 
 void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& Value)
 {
