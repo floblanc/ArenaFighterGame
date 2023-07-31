@@ -10,6 +10,7 @@
 UENUM(BlueprintType)
 enum class EPosture : uint8
 {
+    NEUTRAL UMETA(DisplayName = "NEUTRAL"),
     UP UMETA(DisplayName = "UP"),
     DOWN UMETA(DisplayName = "DOWN"),
     LEFT UMETA(DisplayName = "LEFT"),
@@ -57,6 +58,10 @@ class AArenaFighterGameCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* TapMoveAction;
 
+	/** Posture Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* PostureAction;
+
 
 public:
 	AArenaFighterGameCharacter();
@@ -66,8 +71,6 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-	void MoveForward(float Value); // Move Back = Value < 0.0
-	void MoveRight(float Value); // Move Left = Value < 0.0;
 	void HandlePostureInputY(float Value);
 	void HandlePostureInputX(float Value);
 
@@ -103,6 +106,9 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
+	// Called for Posture Action
+	void ChangePosture(const FInputActionValue& Value);
+
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
@@ -131,6 +137,6 @@ private:
 		bool bIsGuarding;
 
 	UPROPERTY()
-		EPosture Posture;
+		EPosture ActualPosture;
 };
 

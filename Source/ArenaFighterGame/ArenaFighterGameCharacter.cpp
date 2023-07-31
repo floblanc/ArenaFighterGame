@@ -31,6 +31,8 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	DashDistance = 1500.0f;
 	DashTimeout = 0.5f;
 
+	ActualPosture = EPosture::NEUTRAL;
+	
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -110,6 +112,9 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		
 		//Dash detection
 		EnhancedInputComponent->BindAction(TapMoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::CheckDoubleTapToDash);
+
+		//Change Posture detection
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
@@ -137,6 +142,8 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
+
+	if (GetCharacterMovement()->)
 
 	if (Controller != nullptr)
 	{
