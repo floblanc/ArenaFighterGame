@@ -108,7 +108,7 @@ protected:
 
 	// Called for Posture Action
 	void ChangePosture(const FInputActionValue& Value);
-
+	void SetPostureToNeutral();
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
@@ -136,7 +136,13 @@ private:
 	UPROPERTY()
 		bool bIsGuarding;
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		EPosture ActualPosture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		bool IsPostureNeutral;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		float PostureDeadZoneSize;
 };
 

@@ -30,8 +30,9 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 
 	DashDistance = 1500.0f;
 	DashTimeout = 0.5f;
+	PostureDeadZoneSize = 0.25f;
 
-	ActualPosture = EPosture::NEUTRAL;
+	SetPostureToNeutral();
 	
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
@@ -115,6 +116,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Change Posture detection
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::SetPostureToNeutral);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
@@ -143,10 +145,13 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	if (GetCharacterMovement()->)
-
 	if (Controller != nullptr)
 	{
+		if (IsPostureNeutral)
+		{
+			ChangePosture(Value);
+		}
+
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
@@ -282,4 +287,57 @@ void AArenaFighterGameCharacter::ResetDashCounter()
 {
 	DashCounter = 0;
 	UE_LOG(LogTemp, Warning, TEXT("Counter Reset!!\n"));
+}
+
+	void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
+	{
+		// input is a Vector2D
+		FVector2D MovementVector = Value.Get<FVector2D>();
+		IsPostureNeutral = false;
+
+		if (Controller != nullptr)
+		{
+			if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
+			{
+				// Input is neutral
+				SetPostureToNeutral();
+				return ;
+			}
+
+			float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
+			float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
+			if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
+
+			// Normalize angle to [0, 8] and round to nearest whole number
+			int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
+
+			// Determine the rounded direction
+			switch (RoundedAngle)
+			{
+				case 0:  // Right
+					ActualPosture = EPosture::RIGHT;
+				case 1:  // UpRight
+					ActualPosture = EPosture::UPRIGHT;
+				case 2:  // Up
+					ActualPosture = EPosture::UP;
+				case 3:  // UpLeft
+					ActualPosture = EPosture::UPLEFT;
+				case 4:  // Left
+					ActualPosture = EPosture::LEFT;
+				case 5:  // DownLeft
+					ActualPosture = EPosture::DOWNLEFT;
+				case 6:  // Down
+					ActualPosture = EPosture::DOWN;
+				case 7:  // DownRight
+					ActualPosture = EPosture::DOWNRIGHT;
+				default:  // Case 8 wraps around to Up
+					ActualPosture = EPosture::UP;
+			}
+		}
+	}
+
+void AArenaFighterGameCharacter::SetPostureToNeutral()
+{
+	ActualPosture = EPosture::NEUTRAL;
+	IsPostureNeutral = true;
 }
