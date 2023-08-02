@@ -28,7 +28,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 500.0f;
+	DashDistance = 1800.0f;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
