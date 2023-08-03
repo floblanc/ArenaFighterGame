@@ -147,7 +147,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		if (IsPostureNeutral)
+		if (IsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
 		{
 			ChangePosture(Value);
 		}
