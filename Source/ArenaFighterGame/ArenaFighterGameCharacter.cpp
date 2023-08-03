@@ -117,27 +117,23 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		//Change Posture detection
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::SetPostureToNeutral);
+	
+		//Light Attack
+		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LightAttack);
+
+		//Heavy Attack
+		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::HeavyAttack);
+
+		//Special Attack
+		EnhancedInputComponent->BindAction(SpecialAttackAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::SpecialAttack);
+
+		//Guard
+		EnhancedInputComponent->BindAction(GuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Guard);
+	
+		//GuardBreak
+		EnhancedInputComponent->BindAction(GuardBreakAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::GuardBreak);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	// ----myCode-- PlayerInputComponent->BindAxis("MoveForward", this, &AArenaFighterGameCharacter::MoveForward);
-	// ----myCode-- PlayerInputComponent->BindAxis("MoveRight", this, &AArenaFighterGameCharacter::MoveRight);
-	// ----myCode-- PlayerInputComponent->BindAxis("PostureForward", this, &AArenaFighterGameCharacter::HandlePostureInputY);
-	// ----myCode-- PlayerInputComponent->BindAxis("PostureRight", this, &AArenaFighterGameCharacter::HandlePostureInputX);
-	// ----myCode-- 
-	// ----myCode-- PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	// ----myCode-- PlayerInputComponent->BindAction("LightAttack", IE_Pressed, this, &AArenaFighterGameCharacter::LightAttack);
-	// ----myCode-- PlayerInputComponent->BindAction("HeavyAttack", IE_Pressed, this, &AArenaFighterGameCharacter::HeavyAttack);
-	// ----myCode-- PlayerInputComponent->BindAction("SpecialAttack", IE_Pressed, this, &AArenaFighterGameCharacter::SpecialAttack);
-	// ----myCode-- PlayerInputComponent->BindAction("Dash", IE_Pressed, this, &AArenaFighterGameCharacter::Dash);
-	// ----myCode-- 
-	// ----myCode-- PlayerInputComponent->BindAction("Guard", IE_Pressed, this, &AArenaFighterGameCharacter::StartGuarding);
-	// ----myCode-- PlayerInputComponent->BindAction("Guard", IE_Released, this, &AArenaFighterGameCharacter::StopGuarding);
-	// ----myCode-- 
-	// ----myCode-- PlayerInputComponent->BindAction("BreakGuard", IE_Pressed, this, &AArenaFighterGameCharacter::BreakGuard);
-	// ----myCode-- 
-	// ----myCode-- PlayerInputComponent->BindAction("Run", IE_Pressed, this, &AArenaFighterGameCharacter::StartRunning);
-	// ----myCode-- // Bind other inputs to the corresponding actions
 }
 
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
