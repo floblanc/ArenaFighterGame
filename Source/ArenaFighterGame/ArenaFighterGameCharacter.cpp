@@ -108,7 +108,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::StopRunning);
 		
 		//Dash detection
-		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Dash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Dash);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
