@@ -28,7 +28,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 1500.0f;
+	DashDistance = 1800.0f;
 	DashTimeout = 0.5f;
 	PostureDeadZoneSize = 0.25f;
 
@@ -112,7 +112,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::StopRunning);
 		
 		//Dash detection
-		EnhancedInputComponent->BindAction(TapMoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::CheckDoubleTapToDash);
+		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Dash);
 
 		//Change Posture detection
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
@@ -180,16 +180,8 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 void AArenaFighterGameCharacter::StartRunning()
 {
 	// Check if character is already running
-	if (bIsRunning)
-	{
-		StopRunning();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("START RUNNING\n"));
-		bIsRunning = true;
-		GetCharacterMovement()->MaxWalkSpeed = RunningSpeed; // Set running speed
-	}
+	bIsRunning = true;
+	GetCharacterMovement()->MaxWalkSpeed = RunningSpeed; // Set running speed
 }
 
 void AArenaFighterGameCharacter::StopRunning()
@@ -198,91 +190,36 @@ void AArenaFighterGameCharacter::StopRunning()
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
 }
 
-void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
+void AArenaFighterGameCharacter::Dash()
 {
+	UE_LOG(LogTemp, Warning, TEXT("Dash Triggered!\n"));
 	if (Controller != nullptr)
 	{
+		// input is a Vector
+		FVector MovementVector = GetLastMovementInputVector();
+
+		// Convert to a Vector2D
+		FVector2D MovementVector2D = FVector2D(MovementVector.X, MovementVector.Y);
+
 		// Round the input to get a unit vector
-		FVector2D RoundedVector = MoveDirection.GetSafeNormal();
+		FVector2D RoundedVector = MovementVector2D.GetSafeNormal();
 
 		// Find out which way is forward and right
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
-
+		
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
+		
 		// Construct the dash vector using the controller's forward and right vectors
 		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
 		DashVector.Normalize();
 		DashVector *= DashDistance;
 
 		// Apply the impulse
+		UE_LOG(LogTemp, Warning, TEXT("Dash Done\n"));
 		GetCharacterMovement()->AddImpulse(DashVector, true);
 	}
-}
-
-//void AArenaFighterGameCharacter::Dash(const FVector2D& MoveDirection)
-//{
-//	if (Controller != nullptr)
-//	{
-//		FVector2D RoundedVector = MoveDirection.RoundToVector();
-//	
-//		FVector RoundedDashVector(RoundedVector.X, RoundedVector.Y, 0.0f);
-//
-//		// Create a vector that represents the direction in which to dash
-//		FVector DashVector = RoundedDashVector * DashDistance;
-//
-//		// find out which way is forward
-//		const FRotator Rotation = Controller->GetControlRotation();
-//		const FRotator YawRotation(0, Rotation.Yaw, 0);
-//
-//		// get forward vector
-//		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-//
-//		// get right vector 
-//		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-//
-//		DashVector += ForwardDirection + RightDirection;
-//
-//		// Move the character
-//		GetCharacterMovement()->AddImpulse(DashVector, true);
-//	}
-//}
-
-void AArenaFighterGameCharacter::CheckDoubleTapToDash(const FInputActionValue& Value)
-{
-	// input is a Vector2D
-	FVector2D MovementVector = Value.Get<FVector2D>();
-
-	MovementVector.Normalize();
-	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------------------------\n"));
-	UE_LOG(LogTemp, Warning, TEXT("MovementVector.X = %f | MovementVector.Y = %f\n"), MovementVector.X , MovementVector.Y);
-	UE_LOG(LogTemp, Warning, TEXT("LastMoveDirection.X = %f | LastMoveDirection.Y = %f\n"), LastMoveDirection.X , LastMoveDirection.Y);
-	UE_LOG(LogTemp, Warning, TEXT("Distance entre les 2 = %f\n"), FVector2D::Distance(MovementVector , LastMoveDirection));
-	UE_LOG(LogTemp, Warning, TEXT("Distance carré entre les 2 = %f\n"), FVector2D::DistSquared(MovementVector , LastMoveDirection));
-	UE_LOG(LogTemp, Warning, TEXT("-------------------------------------------------------\n"));
-	if (MovementVector.Equals(LastMoveDirection, 0.80f)) // Adjust the tolerance as needed
-	{
-		DashCounter++;
-		if (DashCounter == 2)
-		{
-			Dash(MovementVector);
-			UE_LOG(LogTemp, Warning, TEXT("Dash Done!!\n"));
-		}
-	}
-	else
-	{
-		LastMoveDirection = MovementVector;
-		UE_LOG(LogTemp, Warning, TEXT("Double Tap too far from each other!!\n"));
-	}
-	GetWorld()->GetTimerManager().SetTimer(DashTimerHandle, this, &AArenaFighterGameCharacter::ResetDashCounter, DashTimeout);
-}
-
-void AArenaFighterGameCharacter::ResetDashCounter()
-{
-	DashCounter = 0;
-	UE_LOG(LogTemp, Warning, TEXT("Counter Reset!!\n"));
 }
 
 	void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
