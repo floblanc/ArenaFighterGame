@@ -29,7 +29,6 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	RunningSpeed = 800.f;
 
 	DashDistance = 1800.0f;
-	DashTimeout = 0.5f;
 	PostureDeadZoneSize = 0.25f;
 
 	SetPostureToNeutral();
@@ -131,7 +130,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(GuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Guard);
 	
 		//GuardBreak
-		EnhancedInputComponent->BindAction(GuardBreakAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::GuardBreak);
+		EnhancedInputComponent->BindAction(BreakGuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::BreakGuard);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
