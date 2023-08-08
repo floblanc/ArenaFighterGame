@@ -10,6 +10,7 @@
 UENUM(BlueprintType)
 enum class EPosture : uint8
 {
+    NEUTRAL UMETA(DisplayName = "NEUTRAL"),
     UP UMETA(DisplayName = "UP"),
     DOWN UMETA(DisplayName = "DOWN"),
     LEFT UMETA(DisplayName = "LEFT"),
@@ -55,8 +56,31 @@ class AArenaFighterGameCharacter : public ACharacter
 
 	/** Dash Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputAction* TapMoveAction;
+	class UInputAction* DashAction;
 
+	/** Posture Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* PostureAction;
+
+	/** LightAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* LightAttackAction;
+
+	/** HeavyAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* HeavyAttackAction;
+
+	/** SpecialAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* SpecialAttackAction;
+
+	/** Guard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* GuardAction;
+
+	/** BreakGuard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* BreakGuardAction;
 
 public:
 	AArenaFighterGameCharacter();
@@ -66,18 +90,12 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
-	void MoveForward(float Value); // Move Back = Value < 0.0
-	void MoveRight(float Value); // Move Left = Value < 0.0;
 	void HandlePostureInputY(float Value);
 	void HandlePostureInputX(float Value);
 
 	void LightAttack();
 	void HeavyAttack();
 	void SpecialAttack();
-	
-	void Dash(const FVector2D& MoveDirection);
-	void CheckDoubleTapToDash(const FInputActionValue& Value);
-	void ResetDashCounter();
 	
 	void Guard();
 	void BreakGuard();
@@ -100,9 +118,15 @@ protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
+	// Called for dash input
+	void Dash();
+	
 	// To add mapping context
 	virtual void BeginPlay();
 
+	// Called for Posture Action
+	void ChangePosture(const FInputActionValue& Value);
+	void SetPostureToNeutral();
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
@@ -118,19 +142,16 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	float DashDistance;
 
-	FTimerHandle DashTimerHandle;
-
-	FVector2D LastMoveDirection;
-
-	int DashCounter;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		float DashTimeout;
-
 	UPROPERTY()
 		bool bIsGuarding;
 
-	UPROPERTY()
-		EPosture Posture;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		EPosture ActualPosture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		bool IsPostureNeutral;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		float PostureDeadZoneSize;
 };
 
