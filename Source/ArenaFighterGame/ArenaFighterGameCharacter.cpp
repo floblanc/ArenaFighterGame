@@ -191,35 +191,86 @@ void AArenaFighterGameCharacter::StopRunning()
 
 void AArenaFighterGameCharacter::Dash()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Dash Triggered!\n"));
-	if (Controller != nullptr)
+	// Check if the controller is valid
+	if (Controller == nullptr)
 	{
-		// input is a Vector
-		FVector MovementVector = GetLastMovementInputVector();
-
-		// Convert to a Vector2D
-		FVector2D MovementVector2D = FVector2D(MovementVector.X, MovementVector.Y);
-
-		// Round the input to get a unit vector
-		FVector2D RoundedVector = MovementVector2D.GetSafeNormal();
-
-		// Find out which way is forward and right
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-		
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		
-		// Construct the dash vector using the controller's forward and right vectors
-		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
-		DashVector.Normalize();
-		DashVector *= DashDistance;
-
-		// Apply the impulse
-		UE_LOG(LogTemp, Warning, TEXT("Dash Done\n"));
-		GetCharacterMovement()->AddImpulse(DashVector, true);
+		UE_LOG(LogTemp, Warning, TEXT("Controller is nullptr. Cannot perform dash."));
+		return;
 	}
+
+	// Get the last movement input vector
+	FVector MovementVector = GetLastMovementInputVector();
+
+	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
+	{
+		MovementVector = FVector(1.f, 0.f, 0.f);
+	}
+
+	// Normalize the vector
+	MovementVector.Normalize();
+
+	// Snap to the closest cardinal direction
+	if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
+	{
+		MovementVector.Y = 0.f;
+	}
+	else
+	{
+		MovementVector.X = 0.f;
+	}
+
+	// Get the camera's rotation and extract the yaw
+	const FRotator CameraRotation = Controller->GetControlRotation();
+	const FRotator YawRotation(0, CameraRotation.Yaw, 0);
+
+	// Get the forward and right vectors based on the camera's yaw
+	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+	// Calculate the dash vector
+	FVector DashVector = ForwardDirection * MovementVector.X + RightDirection * MovementVector.Y;
+
+	// Normalize and scale by the dash distance
+	DashVector.Normalize();
+	DashVector *= DashDistance;
+
+	// Apply the impulse to the character movement component
+	GetCharacterMovement()->AddImpulse(DashVector, true);
+
+	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
+
+// void AArenaFighterGameCharacter::Dash()
+// {
+// 	UE_LOG(LogTemp, Warning, TEXT("Dash Triggered!\n"));
+// 	if (Controller != nullptr)
+// 	{
+// 		// input is a Vector
+// 		FVector MovementVector = GetLastMovementInputVector();
+
+// 		// Convert to a Vector2D
+// 		FVector2D MovementVector2D = FVector2D(MovementVector.X, MovementVector.Y);
+
+// 		// Round the input to get a unit vector
+// 		FVector2D RoundedVector = MovementVector2D.GetSignVector();
+
+// 		// Find out which way is forward and right
+// 		const FRotator Rotation = Controller->GetControlRotation();
+// 		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		
+// 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+// 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		
+// 		// Construct the dash vector using the controller's forward and right vectors
+// 		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
+// 		DashVector.Normalize();
+// 		DashVector *= DashDistance;
+
+// 		// Apply the impulse
+// 		UE_LOG(LogTemp, Warning, TEXT("Dash Done\n"));
+// 		GetCharacterMovement()->AddImpulse(DashVector, true);
+// 	}
+// }
 
 	void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 	{
