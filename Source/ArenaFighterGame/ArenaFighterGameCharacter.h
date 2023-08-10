@@ -82,6 +82,11 @@ class AArenaFighterGameCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* BreakGuardAction;
 
+
+	/** Lock/Unlock Camera Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* LockUnlockAction;
+
 public:
 	AArenaFighterGameCharacter();
 
@@ -106,6 +111,7 @@ public:
 	void StartGuarding();
 	void StopGuarding();
 	
+	void LockUnlockCamera();
 
 protected:
 

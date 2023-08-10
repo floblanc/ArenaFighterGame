@@ -129,8 +129,11 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		//Guard
 		EnhancedInputComponent->BindAction(GuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Guard);
 	
-		//GuardBreak
+		//BreakGuard
 		EnhancedInputComponent->BindAction(BreakGuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::BreakGuard);
+
+		//LockUnlockCamera
+		EnhancedInputComponent->BindAction(LockUnlockAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LockUnlockCamera);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
@@ -273,3 +276,5 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 	ActualPosture = EPosture::NEUTRAL;
 	IsPostureNeutral = true;
 }
+
+	void LockUnlockCamera() {}
