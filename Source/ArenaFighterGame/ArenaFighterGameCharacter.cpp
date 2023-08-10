@@ -200,6 +200,7 @@ void AArenaFighterGameCharacter::Dash()
 
 	// Get the last movement input vector
 	FVector MovementVector = GetLastMovementInputVector();
+	UE_LOG(LogTemp, Warning, TEXT("Last Vector Input : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
 
 	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
 	{
@@ -208,6 +209,8 @@ void AArenaFighterGameCharacter::Dash()
 
 	// Normalize the vector
 	MovementVector.Normalize();
+
+	UE_LOG(LogTemp, Warning, TEXT("Vector Normalized : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
 
 	// Snap to the closest cardinal direction
 	if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
@@ -219,6 +222,8 @@ void AArenaFighterGameCharacter::Dash()
 		MovementVector.X = 0.f;
 	}
 
+	UE_LOG(LogTemp, Warning, TEXT("Mono direction Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
+
 	// Get the camera's rotation and extract the yaw
 	const FRotator CameraRotation = Controller->GetControlRotation();
 	const FRotator YawRotation(0, CameraRotation.Yaw, 0);
@@ -227,12 +232,18 @@ void AArenaFighterGameCharacter::Dash()
 	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
+	UE_LOG(LogTemp, Warning, TEXT("ForwardDirection : (%f, %f, %f)"), ForwardDirection.X, ForwardDirection.Y, ForwardDirection.Z);
+	UE_LOG(LogTemp, Warning, TEXT("RightDirection: (%f, %f, %f)"), RightDirection.X, RightDirection.Y, RightDirection.Z);
+
 	// Calculate the dash vector
 	FVector DashVector = ForwardDirection * MovementVector.X + RightDirection * MovementVector.Y;
+	UE_LOG(LogTemp, Warning, TEXT("DashVector RAW : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
 
 	// Normalize and scale by the dash distance
 	DashVector.Normalize();
+	UE_LOG(LogTemp, Warning, TEXT("DashVector Normalized : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
 	DashVector *= DashDistance;
+	UE_LOG(LogTemp, Warning, TEXT("DashVector Final : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
 
 	// Apply the impulse to the character movement component
 	GetCharacterMovement()->AddImpulse(DashVector, true);
@@ -240,84 +251,52 @@ void AArenaFighterGameCharacter::Dash()
 	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
 
-// void AArenaFighterGameCharacter::Dash()
-// {
-// 	UE_LOG(LogTemp, Warning, TEXT("Dash Triggered!\n"));
-// 	if (Controller != nullptr)
-// 	{
-// 		// input is a Vector
-// 		FVector MovementVector = GetLastMovementInputVector();
+void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
+{
+	// input is a Vector2D
+	FVector2D MovementVector = Value.Get<FVector2D>();
+	IsPostureNeutral = false;
 
-// 		// Convert to a Vector2D
-// 		FVector2D MovementVector2D = FVector2D(MovementVector.X, MovementVector.Y);
-
-// 		// Round the input to get a unit vector
-// 		FVector2D RoundedVector = MovementVector2D.GetSignVector();
-
-// 		// Find out which way is forward and right
-// 		const FRotator Rotation = Controller->GetControlRotation();
-// 		const FRotator YawRotation(0, Rotation.Yaw, 0);
-		
-// 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-// 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		
-// 		// Construct the dash vector using the controller's forward and right vectors
-// 		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
-// 		DashVector.Normalize();
-// 		DashVector *= DashDistance;
-
-// 		// Apply the impulse
-// 		UE_LOG(LogTemp, Warning, TEXT("Dash Done\n"));
-// 		GetCharacterMovement()->AddImpulse(DashVector, true);
-// 	}
-// }
-
-	void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
+	if (Controller != nullptr)
 	{
-		// input is a Vector2D
-		FVector2D MovementVector = Value.Get<FVector2D>();
-		IsPostureNeutral = false;
-
-		if (Controller != nullptr)
+		if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
 		{
-			if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
-			{
-				// Input is neutral
-				SetPostureToNeutral();
-				return ;
-			}
+			// Input is neutral
+			SetPostureToNeutral();
+			return ;
+		}
 
-			float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
-			float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
-			if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
+		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
+		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
+		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
 
-			// Normalize angle to [0, 8] and round to nearest whole number
-			int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
+		// Normalize angle to [0, 8] and round to nearest whole number
+		int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
 
-			// Determine the rounded direction
-			switch (RoundedAngle)
-			{
-				case 0:  // Right
-					ActualPosture = EPosture::RIGHT;
-				case 1:  // UpRight
-					ActualPosture = EPosture::UPRIGHT;
-				case 2:  // Up
-					ActualPosture = EPosture::UP;
-				case 3:  // UpLeft
-					ActualPosture = EPosture::UPLEFT;
-				case 4:  // Left
-					ActualPosture = EPosture::LEFT;
-				case 5:  // DownLeft
-					ActualPosture = EPosture::DOWNLEFT;
-				case 6:  // Down
-					ActualPosture = EPosture::DOWN;
-				case 7:  // DownRight
-					ActualPosture = EPosture::DOWNRIGHT;
-				default:  // Case 8 wraps around to Up
-					ActualPosture = EPosture::UP;
-			}
+		// Determine the rounded direction
+		switch (RoundedAngle)
+		{
+			case 0:  // Right
+				ActualPosture = EPosture::RIGHT;
+			case 1:  // UpRight
+				ActualPosture = EPosture::UPRIGHT;
+			case 2:  // Up
+				ActualPosture = EPosture::UP;
+			case 3:  // UpLeft
+				ActualPosture = EPosture::UPLEFT;
+			case 4:  // Left
+				ActualPosture = EPosture::LEFT;
+			case 5:  // DownLeft
+				ActualPosture = EPosture::DOWNLEFT;
+			case 6:  // Down
+				ActualPosture = EPosture::DOWN;
+			case 7:  // DownRight
+				ActualPosture = EPosture::DOWNRIGHT;
+			default:  // Case 8 wraps around to Up
+				ActualPosture = EPosture::NEUTRAL;
 		}
 	}
+}
 
 void AArenaFighterGameCharacter::SetPostureToNeutral()
 {

@@ -105,7 +105,6 @@ public:
 
 	void StartGuarding();
 	void StopGuarding();
-	
 
 protected:
 
