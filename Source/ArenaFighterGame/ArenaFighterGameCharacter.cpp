@@ -21,14 +21,14 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false;
+	bUseControllerRotationYaw = true;
 	bUseControllerRotationRoll = false;
 
 	bIsRunning = false;
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 1800.0f;
+	DashDistance = 1000.0f;
 	PostureDeadZoneSize = 0.25f;
 
 	SetPostureToNeutral();
@@ -176,15 +176,33 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AArenaFighterGameCharacter::UnlockCameraFromCharacterBack()
+{
+	bUseControllerRotationYaw = false;
+}
+
+void AArenaFighterGameCharacter::LockCameraToCharacterBack()
+{
+	bUseControllerRotationYaw = true;
+}
+
 void AArenaFighterGameCharacter::StartRunning()
 {
+	UnlockCameraFromCharacterBack();
+
 	// Check if character is already running
 	bIsRunning = true;
+
 	GetCharacterMovement()->MaxWalkSpeed = RunningSpeed; // Set running speed
 }
 
 void AArenaFighterGameCharacter::StopRunning()
 {
+	if (true) // TODO: In future, change true with check isCameraLocked
+	{
+		LockCameraToCharacterBack();
+	}
+
 	bIsRunning = false;
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
 }
@@ -200,7 +218,6 @@ void AArenaFighterGameCharacter::Dash()
 
 	// Get the last movement input vector
 	FVector MovementVector = GetLastMovementInputVector();
-	UE_LOG(LogTemp, Warning, TEXT("Last Vector Input : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
 
 	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
 	{
@@ -209,8 +226,6 @@ void AArenaFighterGameCharacter::Dash()
 
 	// Normalize the vector
 	MovementVector.Normalize();
-
-	UE_LOG(LogTemp, Warning, TEXT("Vector Normalized : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
 
 	// Snap to the closest cardinal direction
 	if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
@@ -222,29 +237,8 @@ void AArenaFighterGameCharacter::Dash()
 		MovementVector.X = 0.f;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("Mono direction Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
-
-	// Get the camera's rotation and extract the yaw
-	const FRotator CameraRotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0, CameraRotation.Yaw, 0);
-
-	// Get the forward and right vectors based on the camera's yaw
-	const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-	const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-
-	UE_LOG(LogTemp, Warning, TEXT("ForwardDirection : (%f, %f, %f)"), ForwardDirection.X, ForwardDirection.Y, ForwardDirection.Z);
-	UE_LOG(LogTemp, Warning, TEXT("RightDirection: (%f, %f, %f)"), RightDirection.X, RightDirection.Y, RightDirection.Z);
-
-	// Calculate the dash vector
-	FVector DashVector = ForwardDirection * MovementVector.X + RightDirection * MovementVector.Y;
-	UE_LOG(LogTemp, Warning, TEXT("DashVector RAW : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
-
-	// Normalize and scale by the dash distance
-	DashVector.Normalize();
-	UE_LOG(LogTemp, Warning, TEXT("DashVector Normalized : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
-	DashVector *= DashDistance;
-	UE_LOG(LogTemp, Warning, TEXT("DashVector Final : (%f, %f, %f)"), DashVector.X, DashVector.Y, DashVector.Z);
-
+	FVector DashVector = MovementVector * DashDistance;
+	
 	// Apply the impulse to the character movement component
 	GetCharacterMovement()->AddImpulse(DashVector, true);
 
