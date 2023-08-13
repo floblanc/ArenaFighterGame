@@ -28,7 +28,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 1800.0f;
+	DashDistance = 1000.0f;
 	PostureDeadZoneSize = 0.25f;
 
 	SetPostureToNeutral();
@@ -100,7 +100,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Move);
-		
+
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
 
@@ -179,97 +179,121 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void AArenaFighterGameCharacter::UnlockCameraFromCharacterBack()
+{
+	bUseControllerRotationYaw = false;
+}
+
+void AArenaFighterGameCharacter::LockCameraToCharacterBack()
+{
+	bUseControllerRotationYaw = true;
+}
+
 void AArenaFighterGameCharacter::StartRunning()
 {
+	UnlockCameraFromCharacterBack();
+
 	// Check if character is already running
 	bIsRunning = true;
+
 	GetCharacterMovement()->MaxWalkSpeed = RunningSpeed; // Set running speed
 }
 
 void AArenaFighterGameCharacter::StopRunning()
 {
+	if (true) // TODO: In future, change true with check isCameraLocked
+	{
+		LockCameraToCharacterBack();
+	}
+
 	bIsRunning = false;
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
 }
 
 void AArenaFighterGameCharacter::Dash()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Dash Triggered!\n"));
-	if (Controller != nullptr)
+	// Check if the controller is valid
+	if (Controller == nullptr)
 	{
-		// input is a Vector
-		FVector MovementVector = GetLastMovementInputVector();
-
-		// Convert to a Vector2D
-		FVector2D MovementVector2D = FVector2D(MovementVector.X, MovementVector.Y);
-
-		// Round the input to get a unit vector
-		FVector2D RoundedVector = MovementVector2D.GetSafeNormal();
-
-		// Find out which way is forward and right
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-		
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		
-		// Construct the dash vector using the controller's forward and right vectors
-		FVector DashVector = ForwardDirection * RoundedVector.Y + RightDirection * RoundedVector.X;
-		DashVector.Normalize();
-		DashVector *= DashDistance;
-
-		// Apply the impulse
-		UE_LOG(LogTemp, Warning, TEXT("Dash Done\n"));
-		GetCharacterMovement()->AddImpulse(DashVector, true);
+		UE_LOG(LogTemp, Warning, TEXT("Controller is nullptr. Cannot perform dash."));
+		return;
 	}
+
+	// Get the last movement input vector
+	FVector MovementVector = GetLastMovementInputVector();
+
+	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
+	{
+		MovementVector = FVector(1.f, 0.f, 0.f);
+	}
+
+	// Normalize the vector
+	MovementVector.Normalize();
+
+	// Snap to the closest cardinal direction
+	if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
+	{
+		MovementVector.Y = 0.f;
+	}
+	else
+	{
+		MovementVector.X = 0.f;
+	}
+
+	FVector DashVector = MovementVector * DashDistance;
+	
+	// Apply the impulse to the character movement component
+	GetCharacterMovement()->AddImpulse(DashVector, true);
+
+	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
 
-	void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
+void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
+{
+	// input is a Vector2D
+	FVector2D MovementVector = Value.Get<FVector2D>();
+	IsPostureNeutral = false;
+
+	if (Controller != nullptr)
 	{
-		// input is a Vector2D
-		FVector2D MovementVector = Value.Get<FVector2D>();
-		IsPostureNeutral = false;
-
-		if (Controller != nullptr)
+		if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
 		{
-			if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
-			{
-				// Input is neutral
-				SetPostureToNeutral();
-				return ;
-			}
+			// Input is neutral
+			SetPostureToNeutral();
+			return ;
+		}
 
-			float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
-			float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
-			if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
+		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
+		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
+		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
 
-			// Normalize angle to [0, 8] and round to nearest whole number
-			int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
+		// Normalize angle to [0, 8] and round to nearest whole number
+		int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
 
-			// Determine the rounded direction
-			switch (RoundedAngle)
-			{
-				case 0:  // Right
-					ActualPosture = EPosture::RIGHT;
-				case 1:  // UpRight
-					ActualPosture = EPosture::UPRIGHT;
-				case 2:  // Up
-					ActualPosture = EPosture::UP;
-				case 3:  // UpLeft
-					ActualPosture = EPosture::UPLEFT;
-				case 4:  // Left
-					ActualPosture = EPosture::LEFT;
-				case 5:  // DownLeft
-					ActualPosture = EPosture::DOWNLEFT;
-				case 6:  // Down
-					ActualPosture = EPosture::DOWN;
-				case 7:  // DownRight
-					ActualPosture = EPosture::DOWNRIGHT;
-				default:  // Case 8 wraps around to Up
-					ActualPosture = EPosture::UP;
-			}
+		// Determine the rounded direction
+		switch (RoundedAngle)
+		{
+			case 0:  // Right
+				ActualPosture = EPosture::RIGHT;
+			case 1:  // UpRight
+				ActualPosture = EPosture::UPRIGHT;
+			case 2:  // Up
+				ActualPosture = EPosture::UP;
+			case 3:  // UpLeft
+				ActualPosture = EPosture::UPLEFT;
+			case 4:  // Left
+				ActualPosture = EPosture::LEFT;
+			case 5:  // DownLeft
+				ActualPosture = EPosture::DOWNLEFT;
+			case 6:  // Down
+				ActualPosture = EPosture::DOWN;
+			case 7:  // DownRight
+				ActualPosture = EPosture::DOWNRIGHT;
+			default:  // Case 8 wraps around to Up
+				ActualPosture = EPosture::NEUTRAL;
 		}
 	}
+}
 
 void AArenaFighterGameCharacter::SetPostureToNeutral()
 {
@@ -277,4 +301,11 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 	IsPostureNeutral = true;
 }
 
-	void LockUnlockCamera() {}
+void AArenaFighterGameCharacter::LightAttack() {}
+void AArenaFighterGameCharacter::HeavyAttack() {}
+void AArenaFighterGameCharacter::SpecialAttack() {}
+void AArenaFighterGameCharacter::Guard() {}
+void AArenaFighterGameCharacter::BreakGuard() {}
+
+
+void AArenaFighterGameCharacter::LockUnlockCamera() {}
