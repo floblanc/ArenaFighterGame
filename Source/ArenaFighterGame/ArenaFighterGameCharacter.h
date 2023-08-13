@@ -111,7 +111,7 @@ public:
 	void StartGuarding();
 	void StopGuarding();
 	
-	void LockUnlockCamera();
+	void LockUnlockCameraOnEnemy();
 
 protected:
 
@@ -134,8 +134,8 @@ protected:
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
 
-	void LockCameraToCharacterBack();
-	void UnlockCameraFromCharacterBack();
+	void LockCameraOnCharacterBack();
+	void UnlockCharacterBackFromCamera();
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
@@ -147,18 +147,21 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsRunning;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
+	bool bIsCameraLockedOnEnemy;
+
 	// Dash variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	float DashDistance;
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		bool bIsGuarding;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		EPosture ActualPosture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool IsPostureNeutral;
+		bool bIsPostureNeutral;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		float PostureDeadZoneSize;

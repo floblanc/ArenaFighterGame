@@ -132,8 +132,8 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		//BreakGuard
 		EnhancedInputComponent->BindAction(BreakGuardAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::BreakGuard);
 
-		//LockUnlockCamera
-		EnhancedInputComponent->BindAction(LockUnlockAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LockUnlockCamera);
+		//LockUnlockCameraOnEnemy
+		EnhancedInputComponent->BindAction(LockUnlockAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LockUnlockCameraOnEnemy);
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
@@ -145,7 +145,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		if (IsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
+		if (bIsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
 		{
 			ChangePosture(Value);
 		}
@@ -179,19 +179,19 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
-void AArenaFighterGameCharacter::UnlockCameraFromCharacterBack()
+void AArenaFighterGameCharacter::UnlockCharacterBackFromCamera()
 {
 	bUseControllerRotationYaw = false;
 }
 
-void AArenaFighterGameCharacter::LockCameraToCharacterBack()
+void AArenaFighterGameCharacter::LockCameraOnCharacterBack()
 {
 	bUseControllerRotationYaw = true;
 }
 
 void AArenaFighterGameCharacter::StartRunning()
 {
-	UnlockCameraFromCharacterBack();
+	UnlockCharacterBackFromCamera();
 
 	// Check if character is already running
 	bIsRunning = true;
@@ -201,9 +201,9 @@ void AArenaFighterGameCharacter::StartRunning()
 
 void AArenaFighterGameCharacter::StopRunning()
 {
-	if (true) // TODO: In future, change true with check isCameraLocked
+	if (bIsCameraLockedOnEnemy)
 	{
-		LockCameraToCharacterBack();
+		LockCameraOnCharacterBack();
 	}
 
 	bIsRunning = false;
@@ -252,7 +252,7 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
-	IsPostureNeutral = false;
+	bIsPostureNeutral = false;
 
 	if (Controller != nullptr)
 	{
@@ -298,7 +298,7 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 void AArenaFighterGameCharacter::SetPostureToNeutral()
 {
 	ActualPosture = EPosture::NEUTRAL;
-	IsPostureNeutral = true;
+	bIsPostureNeutral = true;
 }
 
 void AArenaFighterGameCharacter::LightAttack() {}
@@ -308,4 +308,21 @@ void AArenaFighterGameCharacter::Guard() {}
 void AArenaFighterGameCharacter::BreakGuard() {}
 
 
-void AArenaFighterGameCharacter::LockUnlockCamera() {}
+void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
+{
+	if (bIsCameraLockedOnEnemy)
+	{
+		//UnlockCameraFromEnemy
+		bIsCameraLockedOnEnemy = false;
+		UnlockCharacterBackFromCamera();
+	}
+	else
+	{
+		//LockCameraOnEnemy
+		bIsCameraLockedOnEnemy = true;
+		if (!bIsRunning)
+		{
+			LockCameraOnCharacterBack();
+		}
+	}
+}
