@@ -134,7 +134,7 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
-	void ChooseBetweenLookAndChangePosture();
+	void ChooseBetweenLookAndChangePosture(const FInputActionValue& Value);
 	// Called for Posture Action
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
@@ -156,7 +156,7 @@ private:
 	bool bIsCameraLockedOnEnemy;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-	bool bIsUsingPostureOrientation;
+	bool bIsCameraLockedOnCharacterBack;
 
 	// Dash variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))

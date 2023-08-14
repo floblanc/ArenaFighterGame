@@ -145,7 +145,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		if (bIsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
+		if (bIsCameraLockedOnCharacterBack && bIsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
 		{
 			ChangePosture(Value);
 		}
@@ -187,11 +187,14 @@ void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 void AArenaFighterGameCharacter::UnlockCharacterBackFromCamera()
 {
 	bUseControllerRotationYaw = false;
+	bIsCameraLockedOnCharacterBack = false;
+	SetPostureToNeutral();
 }
 
 void AArenaFighterGameCharacter::LockCameraOnCharacterBack()
 {
 	bUseControllerRotationYaw = true;
+	bIsCameraLockedOnCharacterBack = true;
 }
 
 void AArenaFighterGameCharacter::StartRunning()
@@ -300,7 +303,7 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 			case 7:  // DownRight
 				ActualPosture = EPosture::DOWNRIGHT;
 			default:  // Case 8 wraps around to Up
-				ActualPosture = EPosture::NEUTRAL;
+				ActualPosture = EPosture::UP;
 		}
 	}
 }
@@ -334,5 +337,20 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		{
 			LockCameraOnCharacterBack();
 		}
+	}
+}
+
+void AArenaFighterGameCharacter::ChooseBetweenLookAndChangePosture(const FInputActionValue& Value)
+{
+	if (bIsCameraLockedOnEnemy)
+	{
+		if (bIsCameraLockedOnCharacterBack)
+		{
+			ChangePosture(Value);
+		}
+	}
+	else
+	{
+		Look(Value);
 	}
 }
