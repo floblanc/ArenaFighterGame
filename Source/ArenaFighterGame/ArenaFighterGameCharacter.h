@@ -87,6 +87,10 @@ class AArenaFighterGameCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* LockUnlockAction;
 
+	/** Choose between Look and Posture Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	class UInputAction* PostureOrLookAction;
+
 public:
 	AArenaFighterGameCharacter();
 
@@ -130,6 +134,7 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
+	void ChooseBetweenLookAndChangePosture();
 	// Called for Posture Action
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
@@ -149,6 +154,9 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsCameraLockedOnEnemy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	bool bIsUsingPostureOrientation;
 
 	// Dash variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))

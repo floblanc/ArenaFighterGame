@@ -168,6 +168,11 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 void AArenaFighterGameCharacter::Look(const FInputActionValue& Value)
 {
+	if (bIsCameraLockedOnEnemy)
+	{
+		ChangePosture(Value);///////////////// NEED TO THINK ABOUT IT
+		return;
+	}
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
@@ -250,6 +255,11 @@ void AArenaFighterGameCharacter::Dash()
 
 void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 {
+	if (!bIsCameraLockedOnEnemy)
+	{
+		Look(Value);///////////////// NEED TO THINK ABOUT IT
+		return;
+	}
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 	bIsPostureNeutral = false;
