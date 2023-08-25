@@ -145,11 +145,6 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
-		if (bIsCameraLockedOnCharacterBack && bIsPostureNeutral) //OU INPUT RELIÉ A L'ACTION DE POSTURE MAIS AVEC UNE PRIORITÉ MOINDRE
-		{
-			ChangePosture(Value);
-		}
-
 		// find out which way is forward
 		const FRotator Rotation = Controller->GetControlRotation();
 		const FRotator YawRotation(0, Rotation.Yaw, 0);
@@ -258,11 +253,6 @@ void AArenaFighterGameCharacter::Dash()
 
 void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 {
-	if (!bIsCameraLockedOnEnemy)
-	{
-		Look(Value);///////////////// NEED TO THINK ABOUT IT
-		return;
-	}
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 	bIsPostureNeutral = false;
@@ -337,20 +327,5 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		{
 			LockCameraOnCharacterBack();
 		}
-	}
-}
-
-void AArenaFighterGameCharacter::ChooseBetweenLookAndChangePosture(const FInputActionValue& Value)
-{
-	if (bIsCameraLockedOnEnemy)
-	{
-		if (bIsCameraLockedOnCharacterBack)
-		{
-			ChangePosture(Value);
-		}
-	}
-	else
-	{
-		Look(Value);
 	}
 }
