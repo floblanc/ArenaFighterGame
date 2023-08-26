@@ -34,9 +34,13 @@ class AArenaFighterGameCharacter : public ACharacter
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
 	
-	/** MappingContext */
+	/** MappingContext Default*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
 	class UInputMappingContext* DefaultMappingContext;
+
+	/** MappingContext Fighting*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input", meta = (AllowPrivateAccess = "true"))
+	class UInputMappingContext* FightingMappingContext;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))

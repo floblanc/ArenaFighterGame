@@ -222,7 +222,7 @@ void AArenaFighterGameCharacter::Dash()
 
 	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
 	{
-		MovementVector = FVector(1.f, 0.f, 0.f);
+		MovementVector = FVector(1.f, 0.f, 0.f); // C'est de la merde
 	}
 
 	// Normalize the vector
@@ -265,8 +265,12 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
 		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
 
-		// Normalize angle to [0, 8] and round to nearest whole number
-		int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f);
+		UE_LOG(LogTemp, Warning, TEXT("\nAngle not Rounded for Actual Posture : %f\n"), AngleDeg);
+
+		// Normalize angle to [0, 7] and round to nearest whole number
+		int RoundedAngle = FMath::RoundToInt(AngleDeg / 45.f) % 8;
+
+		UE_LOG(LogTemp, Warning, TEXT("Angle for Actual Posture : %i\n"), RoundedAngle);
 
 		// Determine the rounded direction
 		switch (RoundedAngle)
@@ -287,8 +291,6 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 				ActualPosture = EPosture::DOWN;
 			case 7:  // DownRight
 				ActualPosture = EPosture::DOWNRIGHT;
-			default:  // Case 8 wraps around to Up
-				ActualPosture = EPosture::UP;
 		}
 	}
 }
@@ -296,6 +298,7 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 void AArenaFighterGameCharacter::SetPostureToNeutral()
 {
 	ActualPosture = EPosture::NEUTRAL;
+	UE_LOG(LogTemp, Warning, TEXT("---------\nNEUTRAL POSTURE\n---------\n"));
 	bIsPostureNeutral = true;
 }
 
@@ -313,6 +316,13 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		//UnlockCameraFromEnemy
 		bIsCameraLockedOnEnemy = false;
 		UnlockCharacterBackFromCamera();
+		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->RemoveMappingContext(FightingMappingContext);
+			}
+		}
 	}
 	else
 	{
@@ -321,6 +331,13 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		if (!bIsRunning)
 		{
 			LockCameraOnCharacterBack();
+		}
+		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->AddMappingContext(FightingMappingContext, 1);
+			}
 		}
 	}
 }
