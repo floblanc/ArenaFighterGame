@@ -134,9 +134,14 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
+	// Called every frame
+	virtual void Tick(float deltaTime) override;
+
 	// Called for Posture Action
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
+	void PostureActionStopped();
+	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
 
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
@@ -169,6 +174,9 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		bool bIsPostureNeutral;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+		bool bIsPostureActionActive;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		float PostureDeadZoneSize;

@@ -80,11 +80,11 @@ void AArenaFighterGameCharacter::BeginPlay()
 	}
 }
 
-// ----myCode-- void AArenaFighterGameCharacter::Tick(float DeltaTime)
-// ----myCode-- {
-// ----myCode-- 	Super::Tick(DeltaTime);
-// ----myCode-- 	UpdatePosture();
-// ----myCode-- }
+void AArenaFighterGameCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	//UpdatePosture();
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -115,7 +115,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Change Posture detection
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::SetPostureToNeutral);
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::PostureActionStopped);
 	
 		//Light Attack
 		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LightAttack);
@@ -140,6 +140,13 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
+	// Change Posture by default movement
+	if (bIsCameraLockedOnCharacterBack && bIsPostureNeutral)
+	{
+		ChangePosture(Value);
+		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+	}
+	
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
@@ -300,6 +307,21 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 	ActualPosture = EPosture::NEUTRAL;
 	UE_LOG(LogTemp, Warning, TEXT("---------\nNEUTRAL POSTURE\n---------\n"));
 	bIsPostureNeutral = true;
+}
+
+void PostureActionStopped()
+{
+	if (PostureAction->)
+}
+
+void TryChangePostureByDefaultMovement()
+{
+	// Change Posture by default movement
+	if (bIsCameraLockedOnCharacterBack && bIsPostureActionActive)
+	{
+		ChangePosture(Value);
+		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+	}
 }
 
 void AArenaFighterGameCharacter::LightAttack() {}
