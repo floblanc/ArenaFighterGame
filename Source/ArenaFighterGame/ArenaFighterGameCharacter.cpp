@@ -100,6 +100,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::Move);
 
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
@@ -140,11 +141,11 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
+	bIsMoving = true;
 	// Change Posture by default movement
-	if (bIsCameraLockedOnCharacterBack && bIsPostureNeutral)
+	if (bIsCameraLockedOnCharacterBack && !(bIsPostureActionActive))
 	{
-		ChangePosture(Value);
-		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+		TryChangePostureByDefaultMovement(Value);
 	}
 	
 	// input is a Vector2D
@@ -258,6 +259,7 @@ void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 	bIsPostureNeutral = false;
+	bIsPostureActionActive = true;
 
 	if (Controller != nullptr)
 	{
@@ -309,18 +311,32 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 	bIsPostureNeutral = true;
 }
 
-void PostureActionStopped()
+void AArenaFighterGameCharacter::MoveActionStopped()
 {
-	if (PostureAction->)
+	bIsMoving = false;
+	if (!bIsPostureActionActive)
+	{
+		SetPostureToNeutral();
+	}
 }
 
-void TryChangePostureByDefaultMovement()
+void AArenaFighterGameCharacter::PostureActionStopped()
+{
+	bIsPostureActionActive = false;
+}
+
+bool AArenaFighterGameCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
 {
 	// Change Posture by default movement
-	if (bIsCameraLockedOnCharacterBack && bIsPostureActionActive)
+	if ( bIsCameraLockedOnCharacterBack && !(bIsPostureActionActive) )
 	{
 		ChangePosture(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 

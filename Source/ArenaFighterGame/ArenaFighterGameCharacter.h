@@ -121,6 +121,7 @@ protected:
 
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
+	void MoveActionStopped();
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
@@ -141,7 +142,7 @@ protected:
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
 	void PostureActionStopped();
-	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
+	bool TryChangePostureByDefaultMovement(const FInputActionValue& Value);
 
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
@@ -153,6 +154,9 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	float RunningSpeed; // Default run speed
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	bool bIsMoving;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsRunning;
 
