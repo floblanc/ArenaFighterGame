@@ -29,7 +29,6 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	RunningSpeed = 800.f;
 
 	DashDistance = 1000.0f;
-	PostureDeadZoneSize = 0.25f;
 
 	SetPostureToNeutral();
 	
@@ -115,7 +114,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Dash);
 
 		//Change Posture detection
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::PostureActionTriggered);
 		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::PostureActionStopped);
 	
 		//Light Attack
@@ -143,9 +142,11 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
 	bIsMoving = true;
 	// Change Posture by default movement
-	if (bIsCameraLockedOnCharacterBack && !(bIsPostureActionActive))
+	// Change Posture by default movement
+	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
 	{
-		TryChangePostureByDefaultMovement(Value);
+		ChangePosture(Value);
+		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
 	}
 	
 	// input is a Vector2D
@@ -254,22 +255,19 @@ void AArenaFighterGameCharacter::Dash()
 	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
 
+void AArenaFighterGameCharacter::PostureActionTriggered(const FInputActionValue& Value)
+{
+	bIsPostureActionActive = true;
+	ChangePosture(Value);
+}
+
 void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
-	bIsPostureNeutral = false;
-	bIsPostureActionActive = true;
 
 	if (Controller != nullptr)
 	{
-		if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
-		{
-			// Input is neutral
-			SetPostureToNeutral();
-			return ;
-		}
-
 		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
 		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
 		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
@@ -308,13 +306,12 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 {
 	ActualPosture = EPosture::NEUTRAL;
 	UE_LOG(LogTemp, Warning, TEXT("---------\nNEUTRAL POSTURE\n---------\n"));
-	bIsPostureNeutral = true;
 }
 
 void AArenaFighterGameCharacter::MoveActionStopped()
 {
 	bIsMoving = false;
-	if (!bIsPostureActionActive)
+	if (bIsPostureActionActive == false)
 	{
 		SetPostureToNeutral();
 	}
@@ -323,20 +320,19 @@ void AArenaFighterGameCharacter::MoveActionStopped()
 void AArenaFighterGameCharacter::PostureActionStopped()
 {
 	bIsPostureActionActive = false;
+	if (bIsMoving == false)
+	{
+		SetPostureToNeutral();
+	}
 }
 
-bool AArenaFighterGameCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
+void AArenaFighterGameCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
 {
 	// Change Posture by default movement
-	if ( bIsCameraLockedOnCharacterBack && !(bIsPostureActionActive) )
+	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
 	{
 		ChangePosture(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
-		return true;
-	}
-	else
-	{
-		return false;
 	}
 }
 
@@ -366,7 +362,7 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 	{
 		//LockCameraOnEnemy
 		bIsCameraLockedOnEnemy = true;
-		if (!bIsRunning)
+		if (bIsRunning == false)
 		{
 			LockCameraOnCharacterBack();
 		}

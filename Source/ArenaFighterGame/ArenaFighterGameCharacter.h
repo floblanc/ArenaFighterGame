@@ -139,10 +139,11 @@ protected:
 	virtual void Tick(float deltaTime) override;
 
 	// Called for Posture Action
+	void PostureActionTriggered(const FInputActionValue& Value);
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
 	void PostureActionStopped();
-	bool TryChangePostureByDefaultMovement(const FInputActionValue& Value);
+	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
 
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
@@ -177,12 +178,6 @@ private:
 		EPosture ActualPosture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool bIsPostureNeutral;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 		bool bIsPostureActionActive;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		float PostureDeadZoneSize;
 };
 
