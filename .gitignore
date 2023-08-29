@@ -36,6 +36,12 @@
 ehthumbs.db
 Thumbs.db
 
+# Useless Project Folders #
+###########################
+DerivedDataCache
+Intermediate
+Saved
+
 # Others #
 ##########
 .vs
