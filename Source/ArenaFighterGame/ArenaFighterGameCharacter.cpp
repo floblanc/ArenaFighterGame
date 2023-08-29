@@ -99,7 +99,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Move);
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::MoveActionStopped);
 
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
@@ -141,7 +141,6 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
 	bIsMoving = true;
-	// Change Posture by default movement
 	// Change Posture by default movement
 	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
 	{
