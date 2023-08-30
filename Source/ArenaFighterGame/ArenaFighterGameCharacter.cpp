@@ -256,8 +256,11 @@ void AArenaFighterGameCharacter::Dash()
 
 void AArenaFighterGameCharacter::PostureActionTriggered(const FInputActionValue& Value)
 {
-	bIsPostureActionActive = true;
-	ChangePosture(Value);
+	if (bIsCameraLockedOnCharacterBack)
+	{
+		bIsPostureActionActive = true;
+		ChangePosture(Value);
+	}
 }
 
 void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
