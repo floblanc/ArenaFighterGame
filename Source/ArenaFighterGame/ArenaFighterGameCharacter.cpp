@@ -31,6 +31,10 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	DashDistance = 1000.0f;
 
 	SetPostureToNeutral();
+	bIsCameraLockedOnCharacterBack = false;
+	bIsCameraLockedOnEnemy = false;
+	lockedOnActor = nullptr;
+	targetingHeighOffset = 20.0f;
 	
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	

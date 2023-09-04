@@ -172,12 +172,21 @@ private:
 	float DashDistance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool bIsGuarding;
+	bool bIsGuarding;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		EPosture ActualPosture;
+	EPosture ActualPosture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool bIsPostureActionActive;
+	bool bIsPostureActionActive;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	TArray<AActor*> lockOnCandidates;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	AActor* lockedOnActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	float targetingHeighOffset;
 };
 
