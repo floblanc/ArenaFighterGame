@@ -180,13 +180,13 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsPostureActionActive;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
 	TArray<AActor*> lockOnCandidates;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
 	AActor* lockedOnActor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock-On", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
 	float targetingHeighOffset;
 };
 

@@ -33,6 +33,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	SetPostureToNeutral();
 	bIsCameraLockedOnCharacterBack = false;
 	bIsCameraLockedOnEnemy = false;
+	
 	lockedOnActor = nullptr;
 	targetingHeighOffset = 20.0f;
 	
@@ -355,6 +356,7 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 	{
 		//UnlockCameraFromEnemy
 		bIsCameraLockedOnEnemy = false;
+		lockedOnActor = nullptr;
 		UnlockCharacterBackFromCamera();
 		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 		{
@@ -367,16 +369,24 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 	else
 	{
 		//LockCameraOnEnemy
-		bIsCameraLockedOnEnemy = true;
-		if (bIsRunning == false)
+		if (lockOnCandidates.Num() > 0)
 		{
-			LockCameraOnCharacterBack();
-		}
-		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-		{
-			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			lockedOnActor = lockOnCandidates[0];
+			if (lockedOnActor)
 			{
-				Subsystem->AddMappingContext(FightingMappingContext, 1);
+				bIsCameraLockedOnEnemy = true;
+				if (bIsRunning == false)
+				{
+					LockCameraOnCharacterBack();
+				}
+
+				if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+				{
+					if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+					{
+						Subsystem->AddMappingContext(FightingMappingContext, 1);
+					}
+				}
 			}
 		}
 	}
