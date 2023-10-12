@@ -161,12 +161,6 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsRunning;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
-	bool bIsCameraLockedOnEnemy;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-	bool bIsCameraLockedOnCharacterBack;
-
 	// Dash variables
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	float DashDistance;
@@ -179,6 +173,12 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	bool bIsPostureActionActive;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
+	bool bIsCameraLockedOnEnemy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
+	bool bIsCameraLockedOnCharacterBack;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
 	TArray<AActor*> lockOnCandidates;
