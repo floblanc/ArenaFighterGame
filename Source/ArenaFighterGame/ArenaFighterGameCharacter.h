@@ -148,6 +148,10 @@ protected:
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
 
+	//The BluePrint Tick's
+	UFUNCTION(BlueprintImplementableEvent, Category = "Tick");
+	void BPTick(float DeltaTime);
+
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
 	float WalkingSpeed; // Default walk speed

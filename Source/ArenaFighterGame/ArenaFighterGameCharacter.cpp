@@ -87,7 +87,12 @@ void AArenaFighterGameCharacter::BeginPlay()
 void AArenaFighterGameCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	//UpdatePosture();
+
+	//Perform the BluePrint Tick logic
+	BPTick(DeltaTime);
+
+	//UpdatePosture() animation?;
+
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -350,7 +355,7 @@ void AArenaFighterGameCharacter::Guard() {}
 void AArenaFighterGameCharacter::BreakGuard() {}
 
 
-void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
+void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy() // TODO: Put some in Tick function!!!
 {
 	if (bIsCameraLockedOnEnemy)
 	{
