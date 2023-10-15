@@ -9,6 +9,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -93,6 +94,12 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 
 	//UpdatePosture() animation?;
 
+	if (bIsCameraLockedOnEnemy)
+	{
+		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
+		lookAtRotation.Pitch -= targetingHeighOffset;
+		GetController()->SetControlRotation(lookAtRotation);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -355,7 +362,7 @@ void AArenaFighterGameCharacter::Guard() {}
 void AArenaFighterGameCharacter::BreakGuard() {}
 
 
-void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy() // TODO: Put some in Tick function!!!
+void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 {
 	if (bIsCameraLockedOnEnemy)
 	{

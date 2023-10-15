@@ -138,6 +138,10 @@ protected:
 	// Called every frame
 	virtual void Tick(float deltaTime) override;
 
+	//The BluePrint Tick's
+	UFUNCTION(BlueprintImplementableEvent, Category = "Tick")
+	void BPTick(float DeltaTime);
+
 	// Called for Posture Action
 	void PostureActionTriggered(const FInputActionValue& Value);
 	void ChangePosture(const FInputActionValue& Value);
@@ -147,10 +151,6 @@ protected:
 
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
-
-	//The BluePrint Tick's
-	UFUNCTION(BlueprintImplementableEvent, Category = "Tick");
-	void BPTick(float DeltaTime);
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
