@@ -99,6 +99,7 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
 		lookAtRotation.Pitch -= targetingHeighOffset;
 		GetController()->SetControlRotation(lookAtRotation);
+		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy\n"));
 	}
 }
 
@@ -367,6 +368,7 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 	if (bIsCameraLockedOnEnemy)
 	{
 		//UnlockCameraFromEnemy
+		UE_LOG(LogTemp, Warning, TEXT("CAMERA UNLOCKED\n"));
 		bIsCameraLockedOnEnemy = false;
 		lockedOnActor = nullptr;
 		UnlockCharacterBackFromCamera();
@@ -383,6 +385,11 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		//LockCameraOnEnemy
 		if (lockOnCandidates.Num() > 0)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("Camera Locked, picking a target among : %i\n"), lockOnCandidates.Num());
+			for (int i = 0; i < lockOnCandidates.Num(); i++)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Candidate n%i is %s/n"), i, ToCStr(GetDebugName(lockOnCandidates[i])));
+			}
 			lockedOnActor = lockOnCandidates[0];
 			if (lockedOnActor)
 			{
