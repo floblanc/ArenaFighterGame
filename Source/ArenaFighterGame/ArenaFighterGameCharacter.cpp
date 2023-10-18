@@ -99,7 +99,7 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
 		lookAtRotation.Pitch -= targetingHeighOffset;
 		GetController()->SetControlRotation(lookAtRotation);
-		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy\n"));
+		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy : %s whend i am %s\n"), ToCStr(GetDebugName(lockedOnActor)), ToCStr(GetController()->GetActorLabel()));
 	}
 }
 
@@ -390,7 +390,7 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 			{
 				UE_LOG(LogTemp, Warning, TEXT("Candidate n%i is %s/n"), i, ToCStr(GetDebugName(lockOnCandidates[i])));
 			}
-			lockedOnActor = lockOnCandidates[0];
+			lockedOnActor = lockOnCandidates[0]; // ça marche parfaitement avec 1 mais il faut ne pas pouvoir se lock soit meme et check se qu'il se passe si la liste est vide
 			if (lockedOnActor)
 			{
 				bIsCameraLockedOnEnemy = true;
