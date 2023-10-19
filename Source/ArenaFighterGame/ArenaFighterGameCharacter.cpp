@@ -19,7 +19,9 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-		
+	
+	TeamId = 0;
+
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false; //try here?
 	bUseControllerRotationYaw = false;
@@ -362,6 +364,10 @@ void AArenaFighterGameCharacter::SpecialAttack() {}
 void AArenaFighterGameCharacter::Guard() {}
 void AArenaFighterGameCharacter::BreakGuard() {}
 
+bool AArenaFighterGameCharacter::IsEnemy(int id)
+{
+	return (id == TeamId);
+}
 
 void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 {

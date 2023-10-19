@@ -150,6 +150,11 @@ protected:
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
 
+	bool IsEnemy(int id);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
+	int TeamId;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	float WalkingSpeed; // Default walk speed
 
