@@ -369,6 +369,20 @@ bool AArenaFighterGameCharacter::IsEnemy(int id)
 	return (id == TeamId);
 }
 
+bool AArenaFighterGameCharacter::IsEnemy(AArenaFighterGameCharacter *fighter)
+{
+	return (fighter->GetTeamId() == TeamId);
+}
+
+int  AArenaFighterGameCharacter::GetTeamId()
+{
+	return (TeamId);
+}
+void AArenaFighterGameCharacter::SetTeamId(int teamId)
+{
+	TeamId = teamId;
+}
+
 void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 {
 	if (bIsCameraLockedOnEnemy)

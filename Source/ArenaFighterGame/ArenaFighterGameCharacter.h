@@ -151,6 +151,11 @@ protected:
 	void UnlockCharacterBackFromCamera();
 
 	bool IsEnemy(int id);
+	bool IsEnemy(AArenaFighterGameCharacter *fighter);
+
+	int  GetTeamId();
+	void SetTeamId(int teamId);
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
 	int TeamId;
