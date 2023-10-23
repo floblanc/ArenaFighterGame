@@ -38,7 +38,7 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	bIsCameraLockedOnEnemy = false;
 	
 	lockedOnActor = nullptr;
-	targetingHeighOffset = 20.0f;
+	targetingHeighOffset = 20.0f; //Must modify it dynamically in Tick function using distance between enemy and character, and modifying camera distance from character too.
 	
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
