@@ -38,8 +38,8 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	bIsCameraLockedOnEnemy = false;
 	
 	lockedOnActor = nullptr;
-	targetingHeighOffset = 20.0f; //Must modify it dynamically in Tick function using distance between enemy and character, and modifying camera distance from character too.
-	
+	targetingHeighOffset = 35.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
+
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -98,10 +98,13 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 
 	if (bIsCameraLockedOnEnemy)
 	{
+		float distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+		// ----distance used to calculate camera Height (Pitch)---
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
-		lookAtRotation.Pitch -= targetingHeighOffset;
+		lookAtRotation.Pitch -= (targetingHeighOffset - distance /100);
 		GetController()->SetControlRotation(lookAtRotation);
 		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy : %s whend i am %s\n"), ToCStr(GetDebugName(lockedOnActor)), ToCStr(GetController()->GetActorLabel()));
+		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
 	}
 }
 
@@ -182,6 +185,8 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 	
 		// get right vector 
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+		UE_LOG(LogTemp, Warning, TEXT("RightDirection Vector value: %s"), *RightDirection.ToString());
 
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
