@@ -101,7 +101,7 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		float distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 		// ----distance used to calculate camera Height (Pitch)---
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
-		lookAtRotation.Pitch -= (targetingHeighOffset - distance /100);
+		lookAtRotation.Pitch -= (targetingHeighOffset - distance / 100);
 		GetController()->SetControlRotation(lookAtRotation);
 		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy : %s whend i am %s\n"), ToCStr(GetDebugName(lockedOnActor)), ToCStr(GetController()->GetActorLabel()));
 		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
@@ -184,7 +184,18 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	
 		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+		if (bIsCameraLockedOnEnemy)
+		{
+			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / distance); // Angle = ArcSin (Opposé / Hypothenuse)
+			if (MovementVector.Y > 0.0)
+			{
+				angle *= -1;
+			}
+			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
+		}
 
 		UE_LOG(LogTemp, Warning, TEXT("RightDirection Vector value: %s"), *RightDirection.ToString());
 
@@ -415,7 +426,7 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 			{
 				UE_LOG(LogTemp, Warning, TEXT("Candidate n%i is %s/n"), i, ToCStr(GetDebugName(lockOnCandidates[i])));
 			}
-			lockedOnActor = lockOnCandidates[0]; // ça marche parfaitement avec 1 mais il faut ne pas pouvoir se lock soit meme et check se qu'il se passe si la liste est vide
+			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
 			if (lockedOnActor)
 			{
 				bIsCameraLockedOnEnemy = true;
