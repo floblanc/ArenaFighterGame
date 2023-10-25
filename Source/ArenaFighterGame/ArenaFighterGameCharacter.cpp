@@ -191,7 +191,10 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = 45;// UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
+			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
+			UE_LOG(LogTemp, Warning, TEXT("Angle sin = %f | Angle calcul: %f | Velocity Length : %f"), (GetCharacterMovement()->Velocity.Length() / 60.0) / (distance * 2.0), angle, GetCharacterMovement()->Velocity.Length());
+			angle = 5.0;
+			UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | Opposé->Length/Frame: %f"), UKismetMathLibrary::Sin(angle), UKismetMathLibrary::Sin(angle) * distance * 2.0);
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector: %s"), *MovementVector.ToString());
 			if (MovementVector.X > 0.0)
 			{
