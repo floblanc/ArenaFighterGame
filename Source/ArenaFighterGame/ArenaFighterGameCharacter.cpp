@@ -185,19 +185,21 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 	
 		// get right vector 
 		FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		
 
 		if (bIsCameraLockedOnEnemy)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
-			if (MovementVector.Y > 0.0)
+			double angle = 45;// UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
+			UE_LOG(LogTemp, Warning, TEXT("MovementVector: %s"), *MovementVector.ToString());
+			if (MovementVector.X > 0.0)
 			{
-				angle *= -1;
+				angle *= -1.0;
 			}
 			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
+			UE_LOG(LogTemp, Warning, TEXT("---AFTER--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 		}
-
-		UE_LOG(LogTemp, Warning, TEXT("RightDirection Vector value: %s"), *RightDirection.ToString());
 
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
