@@ -189,7 +189,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		if (bIsCameraLockedOnEnemy)
 		{
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / distance); // Angle = ArcSin (Opposé / Hypothenuse)
+			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
 			if (MovementVector.Y > 0.0)
 			{
 				angle *= -1;
