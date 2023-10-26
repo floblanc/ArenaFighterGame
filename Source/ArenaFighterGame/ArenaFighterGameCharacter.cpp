@@ -103,7 +103,6 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
 		lookAtRotation.Pitch -= (targetingHeighOffset - distance / 100);
 		GetController()->SetControlRotation(lookAtRotation);
-		UE_LOG(LogTemp, Warning, TEXT("Trying to LockOnEnemy : %s whend i am %s\n"), ToCStr(GetDebugName(lockedOnActor)), ToCStr(GetController()->GetActorLabel()));
 		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
 	}
 }
@@ -190,11 +189,13 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		if (bIsCameraLockedOnEnemy)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
+			// Get the maximum physics substep delta time.
+			float MaxPhysicsSubstepDeltaTime = 60.0;
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = UKismetMathLibrary::Asin(GetCharacterMovement()->Velocity.Length() / (distance * 2.0)); // Angle = ArcSin (Opposé / Hypothenuse)
-			UE_LOG(LogTemp, Warning, TEXT("Angle sin = %f | Angle calcul: %f | Velocity Length : %f"), (GetCharacterMovement()->Velocity.Length() / 60.0) / (distance * 2.0), angle, GetCharacterMovement()->Velocity.Length());
-			angle = 5.0;
-			UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | Opposé->Length/Frame: %f"), UKismetMathLibrary::Sin(angle), UKismetMathLibrary::Sin(angle) * distance * 2.0);
+			double angle = FMath::RadiansToDegrees(UKismetMathLibrary::Asin((GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
+			UE_LOG(LogTemp, Warning, TEXT("Angle sin = %f | Angle calcul: %f | Velocity Length : %f"), (GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime) / (distance * 2.0), angle, GetCharacterMovement()->Velocity.Length());
+			UE_LOG(LogTemp, Warning, TEXT("calculated step size: %f | TickInterval: %f"), (GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime), MaxPhysicsSubstepDeltaTime); // ---|
+			//UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | Opposé->Length/Frame: %f"), UKismetMathLibrary::Sin(angle), UKismetMathLibrary::Sin(angle) * distance * 2.0);
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector: %s"), *MovementVector.ToString());
 			if (MovementVector.X > 0.0)
 			{
@@ -426,11 +427,6 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 		//LockCameraOnEnemy
 		if (lockOnCandidates.Num() > 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Camera Locked, picking a target among : %i\n"), lockOnCandidates.Num());
-			for (int i = 0; i < lockOnCandidates.Num(); i++)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Candidate n%i is %s/n"), i, ToCStr(GetDebugName(lockOnCandidates[i])));
-			}
 			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
 			if (lockedOnActor)
 			{
