@@ -190,13 +190,25 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 			// Get the maximum physics substep delta time.
-			float MaxPhysicsSubstepDeltaTime = 60.0;
+			float MaxPhysicsSubstepDeltaTime = 6.25;
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 			double angle = FMath::RadiansToDegrees(UKismetMathLibrary::Asin((GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
+			
 			UE_LOG(LogTemp, Warning, TEXT("Angle sin = %f | Angle calcul: %f | Velocity Length : %f"), (GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime) / (distance * 2.0), angle, GetCharacterMovement()->Velocity.Length());
 			UE_LOG(LogTemp, Warning, TEXT("calculated step size: %f | TickInterval: %f"), (GetCharacterMovement()->Velocity.Length() / MaxPhysicsSubstepDeltaTime), MaxPhysicsSubstepDeltaTime); // ---|
-			//UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | Opposé->Length/Frame: %f"), UKismetMathLibrary::Sin(angle), UKismetMathLibrary::Sin(angle) * distance * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | CALCULATED stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(5.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(5.0)) * 365.0 * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(5) = %f | LIVE stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(5.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(5.0)) * distance * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(10) = %f | CALCULATED stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(10.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(10.0)) * 178.0 * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(10) = %f | LIVE stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(10.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(10.0)) * distance * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(3) = %f | CALCULATED stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(3.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(3.0)) * 720.0 * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(3) = %f | LIVE stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(3.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(3.0)) * distance * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(7) = %f | CALCULATED stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(7.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(7.0)) * 311.0 * 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("sin(7) = %f | LIVE stepSize: %f"), UKismetMathLibrary::Sin(FMath::DegreesToRadians(7.0)), UKismetMathLibrary::Sin(FMath::DegreesToRadians(7.0)) * distance * 2.0);
+			
+			UE_LOG(LogTemp, Warning, TEXT("Calculated IPS for: sin(5) = %f | sin(10) = %f | sin(3) = %f | sin(7) = %f"), 400.0 / (UKismetMathLibrary::Sin(FMath::DegreesToRadians(5.0)) * 365.0 * 2.0), 400.0 / (UKismetMathLibrary::Sin(FMath::DegreesToRadians(10.0)) * 178.0 * 2.0), 400.0 / (UKismetMathLibrary::Sin(FMath::DegreesToRadians(3.0)) * 720.0 * 2.0), 400.0 / (UKismetMathLibrary::Sin(FMath::DegreesToRadians(7.0)) * 311.0 * 2.0));
+
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector: %s"), *MovementVector.ToString());
+
 			if (MovementVector.X > 0.0)
 			{
 				angle *= -1.0;
