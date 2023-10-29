@@ -9,6 +9,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,9 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 {
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
-		
+	
+	TeamId = 0;
+
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false; //try here?
 	bUseControllerRotationYaw = false;
@@ -28,11 +31,15 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 1000.0f;
-	PostureDeadZoneSize = 0.25f;
+	DashDistance = 1500.0f;
 
 	SetPostureToNeutral();
+	bIsCameraLockedOnCharacterBack = false;
+	bIsCameraLockedOnEnemy = false;
 	
+	lockedOnActor = nullptr;
+	targetingHeighOffset = 30.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
+
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -80,11 +87,25 @@ void AArenaFighterGameCharacter::BeginPlay()
 	}
 }
 
-// ----myCode-- void AArenaFighterGameCharacter::Tick(float DeltaTime)
-// ----myCode-- {
-// ----myCode-- 	Super::Tick(DeltaTime);
-// ----myCode-- 	UpdatePosture();
-// ----myCode-- }
+void AArenaFighterGameCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	//Perform the BluePrint Tick logic
+	BPTick(DeltaTime);
+
+	//UpdatePosture() animation?;
+
+	if (bIsCameraLockedOnEnemy)
+	{
+		float distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+		// ----distance used to calculate camera Height (Pitch)---
+		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
+		lookAtRotation.Pitch -= (targetingHeighOffset - distance / 100);
+		GetController()->SetControlRotation(lookAtRotation);
+		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -100,6 +121,7 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//Moving
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::MoveActionStopped);
 
 		//Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::Look);
@@ -114,8 +136,8 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::Dash);
 
 		//Change Posture detection
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::ChangePosture);
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::SetPostureToNeutral);
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &AArenaFighterGameCharacter::PostureActionTriggered);
+		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &AArenaFighterGameCharacter::PostureActionStopped);
 	
 		//Light Attack
 		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LightAttack);
@@ -140,6 +162,14 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 {
+	bIsMoving = true;
+	// Change Posture by default movement
+	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
+	{
+		ChangePosture(Value);
+		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+	}
+	
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
@@ -153,7 +183,23 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	
 		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		
+
+		if (bIsCameraLockedOnEnemy)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
+			// Get the maximum physics substep delta time.
+			float TimeUnitToDiviceVelocity = 5.25; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+			double angle = FMath::RadiansToDegrees(UKismetMathLibrary::Asin((GetCharacterMovement()->Velocity.Length() / TimeUnitToDiviceVelocity) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
+			
+			if (MovementVector.X > 0.0)
+			{
+				angle *= -1.0;
+			}
+			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
+		}
 
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
@@ -246,21 +292,22 @@ void AArenaFighterGameCharacter::Dash()
 	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
 
+void AArenaFighterGameCharacter::PostureActionTriggered(const FInputActionValue& Value)
+{
+	if (bIsCameraLockedOnCharacterBack)
+	{
+		bIsPostureActionActive = true;
+		ChangePosture(Value);
+	}
+}
+
 void AArenaFighterGameCharacter::ChangePosture(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
-	bIsPostureNeutral = false;
 
 	if (Controller != nullptr)
 	{
-		if (MovementVector.Size() < PostureDeadZoneSize)  // Consider input threshold as per your requirement
-		{
-			// Input is neutral
-			SetPostureToNeutral();
-			return ;
-		}
-
 		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
 		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
 		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
@@ -299,7 +346,34 @@ void AArenaFighterGameCharacter::SetPostureToNeutral()
 {
 	ActualPosture = EPosture::NEUTRAL;
 	UE_LOG(LogTemp, Warning, TEXT("---------\nNEUTRAL POSTURE\n---------\n"));
-	bIsPostureNeutral = true;
+}
+
+void AArenaFighterGameCharacter::MoveActionStopped()
+{
+	bIsMoving = false;
+	if (bIsPostureActionActive == false)
+	{
+		SetPostureToNeutral();
+	}
+}
+
+void AArenaFighterGameCharacter::PostureActionStopped()
+{
+	bIsPostureActionActive = false;
+	if (bIsMoving == false)
+	{
+		SetPostureToNeutral();
+	}
+}
+
+void AArenaFighterGameCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
+{
+	// Change Posture by default movement
+	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
+	{
+		ChangePosture(Value);
+		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
+	}
 }
 
 void AArenaFighterGameCharacter::LightAttack() {}
@@ -308,13 +382,33 @@ void AArenaFighterGameCharacter::SpecialAttack() {}
 void AArenaFighterGameCharacter::Guard() {}
 void AArenaFighterGameCharacter::BreakGuard() {}
 
+bool AArenaFighterGameCharacter::IsEnemy(int id)
+{
+	return (id == TeamId);
+}
+
+bool AArenaFighterGameCharacter::IsEnemy(AArenaFighterGameCharacter *fighter)
+{
+	return (fighter->GetTeamId() == TeamId);
+}
+
+int  AArenaFighterGameCharacter::GetTeamId()
+{
+	return (TeamId);
+}
+void AArenaFighterGameCharacter::SetTeamId(int teamId)
+{
+	TeamId = teamId;
+}
 
 void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 {
 	if (bIsCameraLockedOnEnemy)
 	{
 		//UnlockCameraFromEnemy
+		UE_LOG(LogTemp, Warning, TEXT("CAMERA UNLOCKED\n"));
 		bIsCameraLockedOnEnemy = false;
+		lockedOnActor = nullptr;
 		UnlockCharacterBackFromCamera();
 		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 		{
@@ -327,16 +421,24 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 	else
 	{
 		//LockCameraOnEnemy
-		bIsCameraLockedOnEnemy = true;
-		if (!bIsRunning)
+		if (lockOnCandidates.Num() > 0)
 		{
-			LockCameraOnCharacterBack();
-		}
-		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-		{
-			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
+			if (lockedOnActor)
 			{
-				Subsystem->AddMappingContext(FightingMappingContext, 1);
+				bIsCameraLockedOnEnemy = true;
+				if (bIsRunning == false)
+				{
+					LockCameraOnCharacterBack();
+				}
+
+				if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+				{
+					if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+					{
+						Subsystem->AddMappingContext(FightingMappingContext, 1);
+					}
+				}
 			}
 		}
 	}

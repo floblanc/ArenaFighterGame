@@ -33,63 +33,6 @@ class AArenaFighterGameCharacter : public ACharacter
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class UCameraComponent* FollowCamera;
-	
-	/** MappingContext Default*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputMappingContext* DefaultMappingContext;
-
-	/** MappingContext Fighting*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input", meta = (AllowPrivateAccess = "true"))
-	class UInputMappingContext* FightingMappingContext;
-
-	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* JumpAction;
-
-	/** Move Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* MoveAction;
-
-	/** Look Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* LookAction;
-
-	/** Run Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* RunAction;
-
-	/** Dash Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* DashAction;
-
-	/** Posture Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* PostureAction;
-
-	/** LightAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* LightAttackAction;
-
-	/** HeavyAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* HeavyAttackAction;
-
-	/** SpecialAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* SpecialAttackAction;
-
-	/** Guard Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* GuardAction;
-
-	/** BreakGuard Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* BreakGuardAction;
-
-
-	/** Lock/Unlock Camera Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" , meta = (AllowPrivateAccess = "true"))
-	class UInputAction* LockUnlockAction;
 
 public:
 	AArenaFighterGameCharacter();
@@ -99,6 +42,7 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
+protected:
 	void HandlePostureInputY(float Value);
 	void HandlePostureInputX(float Value);
 
@@ -114,13 +58,68 @@ public:
 
 	void StartGuarding();
 	void StopGuarding();
-	
+
 	void LockUnlockCameraOnEnemy();
 
-protected:
+	/** MappingContext Default*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputMappingContext* DefaultMappingContext;
 
+	/** MappingContext Fighting*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputMappingContext* FightingMappingContext;
+
+	/** Jump Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* JumpAction;
+
+	/** Move Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* MoveAction;
+
+	/** Look Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* LookAction;
+
+	/** Run Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* RunAction;
+
+	/** Dash Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* DashAction;
+
+	/** Posture Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* PostureAction;
+
+	/** LightAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* LightAttackAction;
+
+	/** HeavyAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* HeavyAttackAction;
+
+	/** SpecialAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* SpecialAttackAction;
+
+	/** Guard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* GuardAction;
+
+	/** BreakGuard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* BreakGuardAction;
+
+	/** Lock/Unlock Camera Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* LockUnlockAction;
+	
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
+	void MoveActionStopped();
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
@@ -134,43 +133,71 @@ protected:
 	// To add mapping context
 	virtual void BeginPlay();
 
+	// Called every frame
+	virtual void Tick(float deltaTime) override;
+
+	//The BluePrint Tick's
+	UFUNCTION(BlueprintImplementableEvent, Category = "Tick")
+	void BPTick(float DeltaTime);
+
 	// Called for Posture Action
+	void PostureActionTriggered(const FInputActionValue& Value);
 	void ChangePosture(const FInputActionValue& Value);
 	void SetPostureToNeutral();
+	void PostureActionStopped();
+	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
 
 	void LockCameraOnCharacterBack();
 	void UnlockCharacterBackFromCamera();
 
-private:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	bool IsEnemy(int id);
+	bool IsEnemy(AArenaFighterGameCharacter *fighter);
+
+	int  GetTeamId();
+	void SetTeamId(int teamId);
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
+	int TeamId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	float WalkingSpeed; // Default walk speed
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	float RunningSpeed; // Default run speed
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	bool bIsMoving;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	bool bIsRunning;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", meta = (AllowPrivateAccess = "true"))
-	bool bIsCameraLockedOnEnemy;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-	bool bIsCameraLockedOnCharacterBack;
-
 	// Dash variables
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	float DashDistance;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool bIsGuarding;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	bool bIsGuarding;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		EPosture ActualPosture;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	EPosture ActualPosture;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		bool bIsPostureNeutral;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	bool bIsPostureActionActive;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", meta = (AllowPrivateAccess = "true"))
-		float PostureDeadZoneSize;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
+	bool bIsCameraLockedOnEnemy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
+	bool bIsCameraLockedOnCharacterBack;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
+	TArray<AActor*> lockOnCandidates;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
+	AActor* lockedOnActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
+	float targetingHeighOffset;
 };
 
