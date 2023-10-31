@@ -188,7 +188,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 			// Get the maximum physics substep delta time.
-			float TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+			float TimeUnitToDiviceVelocity = 5.25; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 			double angle = FMath::RadiansToDegrees(UKismetMathLibrary::Asin((GetCharacterMovement()->Velocity.Length() / TimeUnitToDiviceVelocity) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
 			
