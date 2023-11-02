@@ -186,7 +186,6 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 		if (bIsCameraLockedOnEnemy)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("---BEFORE--- : RightDirection Vector value: %s"), *RightDirection.ToString());
 			// Get the maximum physics substep delta time.
 			float TimeUnitToDiviceVelocity = 5.25; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
@@ -196,6 +195,8 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 			{
 				angle *= -1.0;
 			}
+
+			UE_LOG(LogTemp, Warning, TEXT("Angle value: %f"), angle);
 			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
 		}
 
