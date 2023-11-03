@@ -11,6 +11,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Kismet/KismetMathLibrary.h"
 
+#include "Misc/DateTime.h"
 
 //////////////////////////////////////////////////////////////////////////
 // AArenaFighterGameCharacter
@@ -101,6 +102,7 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
 		lookAtRotation.Pitch -= (targetingHeighOffset - distance / 100);
 		GetController()->SetControlRotation(lookAtRotation);
+		UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tRotation on Enemy Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
 		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
 	}
 }
@@ -196,7 +198,10 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 				angle *= -1.0;
 			}
 
+			UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tAngle Calcul Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
 			UE_LOG(LogTemp, Warning, TEXT("Angle value: %f"), angle);
+			UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
+
 			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
 		}
 
