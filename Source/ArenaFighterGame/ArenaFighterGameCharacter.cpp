@@ -74,7 +74,7 @@ void AArenaFighterGameCharacter::BeginPlay()
 {
 	// Call the base class  
 	Super::BeginPlay();
-	// ----myCode--- Posture = EPosture::UP;
+	// ----myCode--- Posture = EPosture::NEUTRAL;
 
 	//Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -261,39 +261,50 @@ void AArenaFighterGameCharacter::StopRunning()
 void AArenaFighterGameCharacter::Dash()
 {
 	// Check if the controller is valid
-	if (Controller == nullptr)
+	if (Controller != nullptr)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Controller is nullptr. Cannot perform dash."));
-		return;
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+		// get forward vector
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		UE_LOG(LogTemp, Warning, TEXT("ForwardDirection Vector : (%f, %f, %f)"), ForwardDirection.X, ForwardDirection.Y, ForwardDirection.Z);
+
+		// get right vector 
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		UE_LOG(LogTemp, Warning, TEXT("RightDirection Vector : (%f, %f, %f)"), RightDirection.X, RightDirection.Y, RightDirection.Z);
+
+		// Get the last movement input vector
+		FVector MovementVector = GetCharacterMovement()->GetLastInputVector();
+		UE_LOG(LogTemp, Warning, TEXT("Pending Input Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
+
+
+
+		if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
+		{
+			MovementVector = ForwardDirection;
+		}
+
+		// Normalize the vector
+		MovementVector.Normalize();
+
+		// Snap to the closest cardinal direction
+		// if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
+		// {
+		// 	MovementVector = ForwardDirection * MovementVector.Y;
+		// }
+		// else
+		// {
+		// 	MovementVector = RightDirection * MovementVector.X;
+		// }
+
+		FVector DashVector = MovementVector * DashDistance;
+		
+		// Apply the impulse to the character movement component
+		GetCharacterMovement()->AddImpulse(DashVector, true);
+
+		UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 	}
-
-	// Get the last movement input vector
-	FVector MovementVector = GetLastMovementInputVector();
-
-	if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
-	{
-		MovementVector = FVector(1.f, 0.f, 0.f); // C'est de la merde
-	}
-
-	// Normalize the vector
-	MovementVector.Normalize();
-
-	// Snap to the closest cardinal direction
-	if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
-	{
-		MovementVector.Y = 0.f;
-	}
-	else
-	{
-		MovementVector.X = 0.f;
-	}
-
-	FVector DashVector = MovementVector * DashDistance;
-	
-	// Apply the impulse to the character movement component
-	GetCharacterMovement()->AddImpulse(DashVector, true);
-
-	UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
 }
 
 void AArenaFighterGameCharacter::PostureActionTriggered(const FInputActionValue& Value)
