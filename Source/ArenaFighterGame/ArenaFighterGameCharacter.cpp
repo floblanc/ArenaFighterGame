@@ -189,9 +189,9 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		if (bIsCameraLockedOnEnemy)
 		{
 			// Get the maximum physics substep delta time.
-			float TimeUnitToDiviceVelocity = 5.25; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+			float TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = FMath::RadiansToDegrees(UKismetMathLibrary::Asin((GetCharacterMovement()->Velocity.Length() / TimeUnitToDiviceVelocity) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
+			double angle = FMath::RadiansToDegrees(FMath::Asin((GetCharacterMovement()->Velocity.Length() / TimeUnitToDiviceVelocity) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
 			
 			if (MovementVector.X > 0.0)
 			{
@@ -263,26 +263,13 @@ void AArenaFighterGameCharacter::Dash()
 	// Check if the controller is valid
 	if (Controller != nullptr)
 	{
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-		// get forward vector
-		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		UE_LOG(LogTemp, Warning, TEXT("ForwardDirection Vector : (%f, %f, %f)"), ForwardDirection.X, ForwardDirection.Y, ForwardDirection.Z);
-
-		// get right vector 
-		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		UE_LOG(LogTemp, Warning, TEXT("RightDirection Vector : (%f, %f, %f)"), RightDirection.X, RightDirection.Y, RightDirection.Z);
-
 		// Get the last movement input vector
 		FVector MovementVector = GetCharacterMovement()->GetLastInputVector();
-		UE_LOG(LogTemp, Warning, TEXT("Pending Input Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
+		UE_LOG(LogTemp, Warning, TEXT("Last Input Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
 
-
-
-		if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to forward
+		if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to zero
 		{
-			MovementVector = ForwardDirection;
+			MovementVector = FVector::ZeroVector;
 		}
 
 		// Normalize the vector
