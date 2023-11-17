@@ -104,6 +104,11 @@ void AArenaFighterGameCharacter::Tick(float DeltaTime)
 		GetController()->SetControlRotation(lookAtRotation);
 		UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tRotation on Enemy Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
 		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
+		FVector MovementVec = GetPendingMovementInputVector();
+		UE_LOG(LogTemp, Warning, TEXT("IN TICK -- Pending Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
+
+		MovementVec = GetCharacterMovement()->GetLastInputVector();;
+		UE_LOG(LogTemp, Warning, TEXT("IN TICK -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
 	}
 }
 
@@ -208,6 +213,11 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
 		AddMovementInput(RightDirection, MovementVector.X);
+		FVector MovementVec = GetPendingMovementInputVector();
+		UE_LOG(LogTemp, Warning, TEXT("IN MOVE -- Pending Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
+
+		MovementVec = GetCharacterMovement()->GetLastInputVector();;
+		UE_LOG(LogTemp, Warning, TEXT("IN MOVE -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
 	}
 }
 
