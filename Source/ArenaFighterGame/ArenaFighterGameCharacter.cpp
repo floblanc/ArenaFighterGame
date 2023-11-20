@@ -194,9 +194,23 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		if (bIsCameraLockedOnEnemy)
 		{
 			// Get the maximum physics substep delta time.
-			float TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+			double TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+			
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-			double angle = FMath::RadiansToDegrees(FMath::Asin((GetCharacterMovement()->Velocity.Length() / TimeUnitToDiviceVelocity) / (distance * 2.0))); // Angle = ArcSin (Opposé / Hypothenuse)
+			UE_LOG(LogTemp, Warning, TEXT("distance : %f"), distance);
+			UE_LOG(LogTemp, Warning, TEXT("MaxWalkSpeed : %f"), GetCharacterMovement()->MaxWalkSpeed);
+			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
+			double originalStepSize = GetCharacterMovement()->MaxWalkSpeed * MovementVector.X;
+			UE_LOG(LogTemp, Warning, TEXT("originalStepSize : %f"), originalStepSize);
+			double radianTargetAngle = originalStepSize / distance;
+			UE_LOG(LogTemp, Warning, TEXT("radianTargetAngle: %f"), radianTargetAngle);
+			double angle = FMath::RadiansToDegrees(radianTargetAngle / 2.0);
+			UE_LOG(LogTemp, Warning, TEXT("angle : %f"), angle);
+			double newStepSize = FMath::Sin(radianTargetAngle / 2.0) * distance * 2.0;
+			UE_LOG(LogTemp, Warning, TEXT("newStepSize: %f"), newStepSize);
+			
+			MovementVector.X = MovementVector.X * newStepSize / originalStepSize;
+			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
 			
 			if (MovementVector.X > 0.0)
 			{
