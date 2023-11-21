@@ -191,7 +191,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 		
 
-		if (bIsCameraLockedOnEnemy)
+		if (bIsCameraLockedOnEnemy && MovementVector.X != 0.0)
 		{
 			// Get the maximum physics substep delta time.
 			double TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
@@ -200,7 +200,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 			UE_LOG(LogTemp, Warning, TEXT("distance : %f"), distance);
 			UE_LOG(LogTemp, Warning, TEXT("MaxWalkSpeed : %f"), GetCharacterMovement()->MaxWalkSpeed);
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
-			double originalStepSize = GetCharacterMovement()->MaxWalkSpeed * MovementVector.X;
+			double originalStepSize = GetCharacterMovement()->MaxWalkSpeed * MovementVector.X / TimeUnitToDiviceVelocity;
 			UE_LOG(LogTemp, Warning, TEXT("originalStepSize : %f"), originalStepSize);
 			double radianTargetAngle = originalStepSize / distance;
 			UE_LOG(LogTemp, Warning, TEXT("radianTargetAngle: %f"), radianTargetAngle);
@@ -210,12 +210,13 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 			UE_LOG(LogTemp, Warning, TEXT("newStepSize: %f"), newStepSize);
 			
 			MovementVector.X = MovementVector.X * newStepSize / originalStepSize;
+
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
+			UE_LOG(LogTemp, Warning, TEXT("MovementVector.Y: %f"), MovementVector.Y);
 			
-			if (MovementVector.X > 0.0)
-			{
-				angle *= -1.0;
-			}
+			angle *= -1.0;;
+
+			UE_LOG(LogTemp, Warning, TEXT("angle : %f"), angle);
 
 			UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tAngle Calcul Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
 			UE_LOG(LogTemp, Warning, TEXT("Angle value: %f"), angle);
@@ -224,6 +225,8 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 			RightDirection = RightDirection.RotateAngleAxis(angle, FVector::ZAxisVector);
 		}
 
+		UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
+		UE_LOG(LogTemp, Warning, TEXT("MovementVector.Y: %f"), MovementVector.Y);
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
 		AddMovementInput(RightDirection, MovementVector.X);
