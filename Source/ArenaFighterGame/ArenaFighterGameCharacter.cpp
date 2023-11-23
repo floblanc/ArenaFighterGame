@@ -18,6 +18,8 @@
 
 AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 {
+	PrimaryActorTick.bCanEverTick = true;
+
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 
@@ -190,31 +192,33 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 		// get right vector 
 		FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 		
+		double TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
+		double originalXStepSize = MovementVector.X * GetCharacterMovement()->Velocity.Size() / TimeUnitToDiviceVelocity;
+		UE_LOG(LogTemp, Warning, TEXT("originalXStepSize : %f"), originalXStepSize);
 
-		if (bIsCameraLockedOnEnemy && MovementVector.X != 0.0)
+		if (bIsCameraLockedOnEnemy && originalXStepSize != 0.0)
 		{
 			// Get the maximum physics substep delta time.
-			double TimeUnitToDiviceVelocity = 5.5; // arbitraire mais 5.25 (6.0 Max ?? Min)semble idéal pour velocity 400/800
 			
 			double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 			UE_LOG(LogTemp, Warning, TEXT("distance : %f"), distance);
 			UE_LOG(LogTemp, Warning, TEXT("MaxWalkSpeed : %f"), GetCharacterMovement()->MaxWalkSpeed);
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
-			double originalStepSize = GetCharacterMovement()->MaxWalkSpeed * MovementVector.X / TimeUnitToDiviceVelocity;
-			UE_LOG(LogTemp, Warning, TEXT("originalStepSize : %f"), originalStepSize);
-			double radianTargetAngle = originalStepSize / distance;
+			// double originalXStepSize = (GetCharacterMovement()->GetLastUpdateLocation() - GetActorLocation()).Size();
+			UE_LOG(LogTemp, Warning, TEXT("originalXStepSize : %f"), originalXStepSize);
+			double radianTargetAngle = originalXStepSize / distance;
 			UE_LOG(LogTemp, Warning, TEXT("radianTargetAngle: %f"), radianTargetAngle);
 			double angle = FMath::RadiansToDegrees(radianTargetAngle / 2.0);
 			UE_LOG(LogTemp, Warning, TEXT("angle : %f"), angle);
 			double newStepSize = FMath::Sin(radianTargetAngle / 2.0) * distance * 2.0;
 			UE_LOG(LogTemp, Warning, TEXT("newStepSize: %f"), newStepSize);
 			
-			MovementVector.X = MovementVector.X * newStepSize / originalStepSize;
+			MovementVector.X = MovementVector.X * newStepSize / originalXStepSize;
 
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector.X: %f"), MovementVector.X);
 			UE_LOG(LogTemp, Warning, TEXT("MovementVector.Y: %f"), MovementVector.Y);
 			
-			angle *= -1.0;;
+			angle *= -1.0;
 
 			UE_LOG(LogTemp, Warning, TEXT("angle : %f"), angle);
 
@@ -235,6 +239,7 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 		MovementVec = GetCharacterMovement()->GetLastInputVector();;
 		UE_LOG(LogTemp, Warning, TEXT("IN MOVE -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
+		// GetCharacterMovement()->PerformMovement();
 	}
 }
 
