@@ -239,7 +239,6 @@ void AArenaFighterGameCharacter::Move(const FInputActionValue& Value)
 
 		MovementVec = GetCharacterMovement()->GetLastInputVector();;
 		UE_LOG(LogTemp, Warning, TEXT("IN MOVE -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
-		// GetCharacterMovement()->PerformMovement();
 	}
 }
 
