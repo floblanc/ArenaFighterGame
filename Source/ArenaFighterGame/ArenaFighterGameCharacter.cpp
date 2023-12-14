@@ -409,12 +409,6 @@ void AArenaFighterGameCharacter::TryChangePostureByDefaultMovement(const FInputA
 	}
 }
 
-void AArenaFighterGameCharacter::LightAttack() {}
-void AArenaFighterGameCharacter::HeavyAttack() {}
-void AArenaFighterGameCharacter::SpecialAttack() {}
-void AArenaFighterGameCharacter::Guard() {}
-void AArenaFighterGameCharacter::BreakGuard() {}
-
 bool AArenaFighterGameCharacter::IsEnemy(int id)
 {
 	return (id == TeamId);
@@ -475,4 +469,28 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 			}
 		}
 	}
+}
+
+void AArenaFighterGameCharacter::LightAttack() {
+	UE_LOG(LogTemp, Warning, TEXT("LightAttack\n"));
+}
+
+void AArenaFighterGameCharacter::HeavyAttack() {
+	UE_LOG(LogTemp, Warning, TEXT("HeavyAttack\n"));
+}
+
+
+void AArenaFighterGameCharacter::SpecialAttack()
+{
+	UE_LOG(LogTemp, Warning, TEXT("SpecialAttack\n"));
+}
+
+void AArenaFighterGameCharacter::Guard()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Guard\n"));
+}
+
+void AArenaFighterGameCharacter::BreakGuard()
+{
+	UE_LOG(LogTemp, Warning, TEXT("BreakGuard\n"));
 }
