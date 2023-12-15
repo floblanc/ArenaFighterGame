@@ -163,6 +163,12 @@ void AArenaFighterGameCharacter::SetupPlayerInputComponent(class UInputComponent
 
 		//LockUnlockCameraOnEnemy
 		EnhancedInputComponent->BindAction(LockUnlockAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::LockUnlockCameraOnEnemy);
+
+		//TakeDamages
+		EnhancedInputComponent->BindAction(TakeDamagesAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::StartDamage);
+
+		//Heal
+		EnhancedInputComponent->BindAction(HealAction, ETriggerEvent::Started, this, &AArenaFighterGameCharacter::StartHealing);	
 	}
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 }

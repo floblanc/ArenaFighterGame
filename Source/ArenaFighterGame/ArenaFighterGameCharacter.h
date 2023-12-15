@@ -116,7 +116,21 @@ protected:
 	/** Lock/Unlock Camera Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* LockUnlockAction;
+
+	/** Heal Camera Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* HealAction;
+
+	/** TakeDamages Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* TakeDamagesAction;
 	
+	void StartDamage();
+	void TakeDamages(float damageAmount);
+
+	void StartHealing();
+	void Heal(float healAmount);
+
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
 	void MoveActionStopped();
@@ -199,5 +213,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
 	float targetingHeighOffset;
+
+	//the amount of health the player currently has
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	float playerHealth;
 };
 
