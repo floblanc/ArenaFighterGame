@@ -41,6 +41,8 @@ AArenaFighterGameCharacter::AArenaFighterGameCharacter()
 	lockedOnActor = nullptr;
 	targetingHeighOffset = 30.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
 
+	playerHealth = 1.00f;
+
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -479,16 +481,19 @@ void AArenaFighterGameCharacter::LockUnlockCameraOnEnemy()
 
 void AArenaFighterGameCharacter::LightAttack() {
 	UE_LOG(LogTemp, Warning, TEXT("LightAttack\n"));
+	TakeDamages(0.02f);
 }
 
 void AArenaFighterGameCharacter::HeavyAttack() {
 	UE_LOG(LogTemp, Warning, TEXT("HeavyAttack\n"));
+	TakeDamages(0.05f);
 }
 
 
 void AArenaFighterGameCharacter::SpecialAttack()
 {
 	UE_LOG(LogTemp, Warning, TEXT("SpecialAttack\n"));
+	TakeDamages(0.04f);
 }
 
 void AArenaFighterGameCharacter::Guard()
@@ -499,4 +504,39 @@ void AArenaFighterGameCharacter::Guard()
 void AArenaFighterGameCharacter::BreakGuard()
 {
 	UE_LOG(LogTemp, Warning, TEXT("BreakGuard\n"));
+}
+
+
+
+void AArenaFighterGameCharacter::TakeDamages(float damageAmount)
+{
+	UE_LOG(LogTemp, Warning, TEXT("We are taking damages for %f points\n"), damageAmount);
+	playerHealth -= damageAmount;
+
+	if (playerHealth < 0.00f)
+	{
+		playerHealth = 0.00f;
+	}
+}
+
+void AArenaFighterGameCharacter::StartDamage()
+{
+	TakeDamages(0.03f);
+}
+
+void AArenaFighterGameCharacter::Heal(float healAmount)
+{
+
+	UE_LOG(LogTemp, Warning, TEXT("We are healing for %f points\n"), healAmount);
+	playerHealth += healAmount;
+
+	if (playerHealth > 1.00f)
+	{
+		playerHealth = 1.00f;
+	}
+}
+
+void AArenaFighterGameCharacter::StartHealing()
+{
+	Heal(0.10f);
 }
