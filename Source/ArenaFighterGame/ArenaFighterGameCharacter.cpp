@@ -517,6 +517,7 @@ void AArenaFighterGameCharacter::TakeDamages(float damageAmount)
 	{
 		playerHealth = 0.00f;
 	}
+	UE_LOG(LogTemp, Warning, TEXT("playerHealth is now: %f points\n"), playerHealth);
 }
 
 void AArenaFighterGameCharacter::StartDamage()
@@ -534,6 +535,7 @@ void AArenaFighterGameCharacter::Heal(float healAmount)
 	{
 		playerHealth = 1.00f;
 	}
+	UE_LOG(LogTemp, Warning, TEXT("playerHealth is now: %f points\n"), playerHealth);
 }
 
 void AArenaFighterGameCharacter::StartHealing()
