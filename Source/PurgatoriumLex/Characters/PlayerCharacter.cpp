@@ -5,6 +5,7 @@
 #include "AbilitySystem/PurgatoriumLexAbilitySystemComponent.h"
 #include "AbilitySystem/PurgatoriumLexAttributeSet.h"
 #include "Player/PurgatoriumLexPlayerState.h"
+#include "UI/PurgatoriumLexHUD.h"
 
 //#include "PurgatoriumLexMacros.h"
 
@@ -23,6 +24,7 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 	InitAbilitySystemComponent();
 	GiveDefaultAbilities();
 	InitDefaultAttributes();
+	InitHUD();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -31,6 +33,7 @@ void APlayerCharacter::OnRep_PlayerState()
 
 	InitAbilitySystemComponent();
 	InitDefaultAttributes();
+	InitHUD();
 }
 
 void APlayerCharacter::InitAbilitySystemComponent()
@@ -40,6 +43,17 @@ void APlayerCharacter::InitAbilitySystemComponent()
 	AbilitySystemComponent = CastChecked<UPurgatoriumLexAbilitySystemComponent>(PurgatoriumLexPlayerState->GetAbilitySystemComponent());
 	AbilitySystemComponent->InitAbilityActorInfo(PurgatoriumLexPlayerState, this);
 	AttributeSet = PurgatoriumLexPlayerState->GetAttributeSet();
+}
+
+void APlayerCharacter::InitHUD() const
+{
+	if (const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if (APurgatoriumLexHUD* PurgatoriumLexHUD = Cast<APurgatoriumLexHUD>(PlayerController->GetHUD()))
+		{
+			PurgatoriumLexHUD->Init();
+		}
+	}
 }
 
 //// Called when the game starts or when spawned

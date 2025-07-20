@@ -9,7 +9,7 @@
 // Sets default values
 UPurgatoriumLexAttributeSet::UPurgatoriumLexAttributeSet()
 {
-	InitHealth(80.f);
+	//InitHealth(80.f);
 }
 
 void UPurgatoriumLexAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -28,20 +28,20 @@ void UPurgatoriumLexAttributeSet::PreAttributeChange(const FGameplayAttribute& A
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 
-	if (Attribute == GetHealthAttribute())
-	{
-		NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
-	}
+	//if (Attribute == GetHealthAttribute())
+	//{
+	//	NewValue = FMath::Clamp(NewValue, 0.f, GetMaxHealth());
+	//}
 }
 
 void UPurgatoriumLexAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	if (Data.EvaluatedData.Attribute == GetHealthAttribute())
-	{
-		SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
-	}
+	//if (Data.EvaluatedData.Attribute == GetHealthAttribute())
+	//{
+	//	SetHealth(FMath::Clamp(GetHealth(), 0.f, GetMaxHealth()));
+	//}
 }
 
 

@@ -3,12 +3,13 @@
 
 #include "PurgatoriumLexPlayerState.h"
 #include "AbilitySystem/PurgatoriumLexAbilitySystemComponent.h"
+#include "AbilitySystem/PurgatoriumLexAttributeSet.h"
 
 
 // Sets default values
 APurgatoriumLexPlayerState::APurgatoriumLexPlayerState()
 {
-	NetUpdateFrequency = 60.f; //100.f
+	SetNetUpdateFrequency(60.f); //100.f
 
 	AbilitySystemComponent = CreateDefaultSubobject<UPurgatoriumLexAbilitySystemComponent>("AbilitySystemComponent");
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);

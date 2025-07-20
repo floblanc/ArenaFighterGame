@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AttributeSet.h"
-#include  "AbilitySystemComponent.h"
+#include "AbilitySystemComponent.h"
 #include "PurgatoriumLexAttributeSet.generated.h"
 
 #define ATTRIBUTE_ACCESSORS(ClassName, PropertyName) \
@@ -12,6 +12,9 @@ GAMEPLAYATTRIBUTE_PROPERTY_GETTER(ClassName, PropertyName) \
 GAMEPLAYATTRIBUTE_VALUE_GETTER(PropertyName) \
 GAMEPLAYATTRIBUTE_VALUE_SETTER(PropertyName) \
 GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
+
+#define NUMERIC_VALUE(AttributeSetName, PropertyName) \
+	AttributeSetName->Get##PropertyName##Attribute().GetNumericValue(AttributeSetName)
 
 UCLASS()
 class PURGATORIUMLEX_API UPurgatoriumLexAttributeSet : public UAttributeSet
