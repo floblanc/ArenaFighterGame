@@ -7,7 +7,7 @@ public class PurgatoriumLex : ModuleRules
 	public PurgatoriumLex(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
+
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
@@ -15,21 +15,26 @@ public class PurgatoriumLex : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"AIModule",
-			// "StateTreeModule",
-			"GameplayAbilities",
-			// "GameplayStateTreeModule",
-			"GameplayTags",
-			"GameplayTasks",
+			"StateTreeModule",
+			"GameplayStateTreeModule",
 			"UMG"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
+		PrivateDependencyModuleNames.AddRange(new string[] { });
 
-		PublicIncludePaths.Add("PurgatoriumLex");
+		PublicIncludePaths.AddRange(new string[] {
+			"PurgatoriumLex",
+			"PurgatoriumLex/Variant_Platforming",
+			"PurgatoriumLex/Variant_Combat",
+			"PurgatoriumLex/Variant_Combat/AI",
+			"PurgatoriumLex/Variant_SideScrolling",
+			"PurgatoriumLex/Variant_SideScrolling/Gameplay",
+			"PurgatoriumLex/Variant_SideScrolling/AI"
+		});
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 

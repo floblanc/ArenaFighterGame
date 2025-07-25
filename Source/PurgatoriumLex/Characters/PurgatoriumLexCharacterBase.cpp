@@ -50,25 +50,25 @@ void APurgatoriumLexCharacterBase::InitDefaultAttributes() const
 	}
 }
 
-//// Called when the game starts or when spawned
-//void APurgatoriumLexCharacterBase::BeginPlay()
-//{
-//	Super::BeginPlay();
-//	
-//}
+// Called when the game starts or when spawned
+void APurgatoriumLexCharacterBase::BeginPlay()
+{
+	Super::BeginPlay();
+	
+}
 
-//// Called every frame
-//void APurgatoriumLexCharacterBase::Tick(float DeltaTime)
-//{
-//	Super::Tick(DeltaTime);
-//
-//}
-//
-//// Called to bind functionality to input
-//void APurgatoriumLexCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-//{
-//	Super::SetupPlayerInputComponent(PlayerInputComponent);
-//
-//}
+// Called every frame
+void APurgatoriumLexCharacterBase::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+}
+
+// Called to bind functionality to input
+void APurgatoriumLexCharacterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+}
 
 

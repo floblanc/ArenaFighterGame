@@ -1,11 +1,11 @@
-
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PurgatoriumLexCharacterBase.h"
+#include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
-#include "PlayerCharacter.generated.h"
+#include "PurgatoriumLexCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
@@ -14,8 +14,12 @@ struct FInputActionValue;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
-UCLASS()
-class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
+/**
+ *  A simple player-controllable third person character
+ *  Implements a controllable orbiting camera
+ */
+UCLASS(abstract)
+class APurgatoriumLexCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
@@ -46,18 +50,16 @@ protected:
 	UInputAction* MouseLookAction;
 
 public:
-	// Sets default values for this character's properties
-	APlayerCharacter();
-	virtual void PossessedBy(AController* NewController) override;
-	virtual void OnRep_PlayerState() override;
 
-private:
-	void InitAbilitySystemComponent();
-	void InitHUD() const;
+	/** Constructor */
+	APurgatoriumLexCharacter();	
 
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+
+	/** Initialize input action bindings */
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+protected:
 
 	/** Called for movement input */
 	void Move(const FInputActionValue& Value);
@@ -65,12 +67,7 @@ protected:
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+public:
 
 	/** Handles move inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
@@ -85,7 +82,7 @@ public:
 	virtual void DoJumpStart();
 
 	/** Handles jump pressed inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category = "Input")
+	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoJumpEnd();
 
 public:
@@ -96,3 +93,4 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };
+

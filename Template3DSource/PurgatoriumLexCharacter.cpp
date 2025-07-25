@@ -1,11 +1,6 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
 
-
-
-#include "PlayerCharacter.h"
-#include "AbilitySystem/PurgatoriumLexAbilitySystemComponent.h"
-#include "AbilitySystem/PurgatoriumLexAttributeSet.h"
-#include "Player/PurgatoriumLexPlayerState.h"
-#include "UI/PurgatoriumLexHUD.h"
+#include "PurgatoriumLexCharacter.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -16,33 +11,27 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 
-// #include "PurgatoriumLexMacros.h"
-
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
-// Sets default values
-APlayerCharacter::APlayerCharacter()
+APurgatoriumLexCharacter::APurgatoriumLexCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
-
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
-	 bUseControllerRotationPitch = false;
-	 bUseControllerRotationYaw = true; // lock camera behind character
-	 bUseControllerRotationRoll = false;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationRoll = false;
 
 	// Configure character movement
-	//GetCharacterMovement()->bOrientRotationToMovement = true;
-	//GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
 
 	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 400.f;
+	GetCharacterMovement()->MaxWalkSpeed = 500.f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
@@ -52,79 +41,18 @@ APlayerCharacter::APlayerCharacter()
 	CameraBoom->SetupAttachment(RootComponent);
 	CameraBoom->TargetArmLength = 400.0f;
 	CameraBoom->bUsePawnControlRotation = true;
-	CameraBoom->bEnableCameraLag = true;
-	CameraBoom->bEnableCameraRotationLag = true;
 
-	// create the orbiting camera
+	// Create a follow camera
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
-
-	// set the player tag
-	Tags.Add(FName("Player"));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
-void APlayerCharacter::PossessedBy(AController* NewController)
+void APurgatoriumLexCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	Super::PossessedBy(NewController);
-
-	InitAbilitySystemComponent();
-	GiveDefaultAbilities();
-	InitDefaultAttributes();
-	InitHUD();
-}
-
-void APlayerCharacter::OnRep_PlayerState()
-{
-	Super::OnRep_PlayerState();
-
-	InitAbilitySystemComponent();
-	InitDefaultAttributes();
-	InitHUD();
-}
-
-void APlayerCharacter::InitAbilitySystemComponent()
-{
-	APurgatoriumLexPlayerState* PurgatoriumLexPlayerState = GetPlayerState<APurgatoriumLexPlayerState>();
-	check(PurgatoriumLexPlayerState);
-	AbilitySystemComponent = CastChecked<UPurgatoriumLexAbilitySystemComponent>(PurgatoriumLexPlayerState->GetAbilitySystemComponent());
-	AbilitySystemComponent->InitAbilityActorInfo(PurgatoriumLexPlayerState, this);
-	AttributeSet = PurgatoriumLexPlayerState->GetAttributeSet();
-}
-
-void APlayerCharacter::InitHUD() const
-{
-	if (const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
-	{
-		if (APurgatoriumLexHUD* PurgatoriumLexHUD = Cast<APurgatoriumLexHUD>(PlayerController->GetHUD()))
-		{
-			PurgatoriumLexHUD->Init();
-		}
-	}
-}
-
-// Called when the game starts or when spawned
-void APlayerCharacter::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
-
-// Called every frame
-void APlayerCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
-
-// Called to bind functionality to input
-void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
 	// Set up action bindings
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
 		
@@ -133,11 +61,11 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 
 		// Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Move);
-		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APurgatoriumLexCharacter::Move);
+		EnhancedInputComponent->BindAction(MouseLookAction, ETriggerEvent::Triggered, this, &APurgatoriumLexCharacter::Look);
 
 		// Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APurgatoriumLexCharacter::Look);
 	}
 	else
 	{
@@ -145,8 +73,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	}
 }
 
-
-void APlayerCharacter::Move(const FInputActionValue& Value)
+void APurgatoriumLexCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -155,7 +82,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	DoMove(MovementVector.X, MovementVector.Y);
 }
 
-void APlayerCharacter::Look(const FInputActionValue& Value)
+void APurgatoriumLexCharacter::Look(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
@@ -164,7 +91,7 @@ void APlayerCharacter::Look(const FInputActionValue& Value)
 	DoLook(LookAxisVector.X, LookAxisVector.Y);
 }
 
-void APlayerCharacter::DoMove(float Right, float Forward)
+void APurgatoriumLexCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
 	{
@@ -184,7 +111,7 @@ void APlayerCharacter::DoMove(float Right, float Forward)
 	}
 }
 
-void APlayerCharacter::DoLook(float Yaw, float Pitch)
+void APurgatoriumLexCharacter::DoLook(float Yaw, float Pitch)
 {
 	if (GetController() != nullptr)
 	{
@@ -194,13 +121,13 @@ void APlayerCharacter::DoLook(float Yaw, float Pitch)
 	}
 }
 
-void APlayerCharacter::DoJumpStart()
+void APurgatoriumLexCharacter::DoJumpStart()
 {
 	// signal the character to jump
 	Jump();
 }
 
-void APlayerCharacter::DoJumpEnd()
+void APurgatoriumLexCharacter::DoJumpEnd()
 {
 	// signal the character to stop jumping
 	StopJumping();
