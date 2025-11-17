@@ -21,7 +21,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UAttributesWidget> AttributeWidgetClass;
 
+
 private:
 	UPROPERTY()
-	TObjectPtr<UAttributesWidget> AttributeWidget;
+	TObjectPtr<UAttributesWidget> AttributeWidget; // local player's HUD bar
 };

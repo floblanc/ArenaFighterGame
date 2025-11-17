@@ -54,7 +54,6 @@ void APurgatoriumLexCharacterBase::InitDefaultAttributes() const
 void APurgatoriumLexCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 // Called every frame

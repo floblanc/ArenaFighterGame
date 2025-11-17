@@ -15,12 +15,17 @@ class PURGATORIUMLEX_API UAttributesWidget : public UUserWidget
 {
 	GENERATED_BODY()
 public:
+	UFUNCTION(BlueprintCallable, Category="Attributes")
 	void BindToAttributes();
 
 protected:
-	UPROPERTY(BlueprintReadOnly)
+
+	UPROPERTY(BlueprintReadOnly, Category="Attributes")
 	float HealthPercent;
 
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category="Attributes")
 	float StaminaPercent;
+
+	UPROPERTY(BlueprintReadOnly, Category="Attributes")
+	FText HealthText;
 };

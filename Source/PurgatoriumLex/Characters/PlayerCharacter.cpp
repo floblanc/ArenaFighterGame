@@ -24,7 +24,7 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 // Sets default values
 APlayerCharacter::APlayerCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	// Set size for collision capsule
@@ -61,7 +61,7 @@ APlayerCharacter::APlayerCharacter()
 
 	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
 	// instead of recompiling to adjust them
-	GetCharacterMovement()->JumpZVelocity = 700.f;
+	GetCharacterMovement()->JumpZVelocity = 500.f;
 	GetCharacterMovement()->AirControl = 0.35f; // TODO: Ajust the value to something not so permissive but still worth for DI
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
@@ -94,6 +94,8 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 	GiveDefaultAbilities();
 	InitDefaultAttributes();
 	InitHUD();
+
+	BP_TryInitFloatingHealthBar();
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -103,6 +105,8 @@ void APlayerCharacter::OnRep_PlayerState()
 	InitAbilitySystemComponent();
 	InitDefaultAttributes();
 	InitHUD();
+
+	BP_TryInitFloatingHealthBar();
 }
 
 void APlayerCharacter::InitAbilitySystemComponent()
@@ -116,6 +120,7 @@ void APlayerCharacter::InitAbilitySystemComponent()
 
 void APlayerCharacter::InitHUD() const
 {
+	UE_LOG(LogTemp, Warning, TEXT("InitHUD called for %s"), *GetName());
 	if (const APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		if (APurgatoriumLexHUD* PurgatoriumLexHUD = Cast<APurgatoriumLexHUD>(PlayerController->GetHUD()))
@@ -129,7 +134,7 @@ void APlayerCharacter::InitHUD() const
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+ 
 }
 
 // Called every frame
@@ -664,6 +669,27 @@ void APlayerCharacter::LockUnlockCameraOnEnemy()
 
 void APlayerCharacter::LightAttack() {
 	UE_LOG(LogTemp, Warning, TEXT("LightAttack\n"));
+	
+	// Get the Ability System Component (equivalent to "Get Ability System Component" node)
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		// Try to activate GA Kick ability (equivalent to "Try Activate Ability by Class" node)
+		// Note: You'll need to define the GA_Kick class or use the appropriate ability class
+		// For now, using a placeholder - replace with your actual GA Kick class
+		if (GA_Kick)
+		{
+			ASC->TryActivateAbilityByClass(GA_Kick, true); // true = Allow Remote Activation
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("GA_Kick not set in PlayerCharacter"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Ability System Component not found"));
+	}
+	
 	bAttackHasBeenUsed = true;
 	UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));
 	//TakeDamages(0.02f);

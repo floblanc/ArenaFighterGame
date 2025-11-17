@@ -6,7 +6,13 @@
 
 void APurgatoriumLexHUD::Init()
 {
-	AttributeWidget = CreateWidget<UAttributesWidget>(GetOwningPlayerController(), AttributeWidgetClass);
-	AttributeWidget->BindToAttributes();
-	AttributeWidget->AddToViewport();
+	APlayerController* PlayerController = GetOwningPlayerController();
+	// ------- TOP BAR (Local Player) -------
+	if (AttributeWidgetClass)
+	{
+		AttributeWidget = CreateWidget<UAttributesWidget>(PlayerController, AttributeWidgetClass);
+		AttributeWidget->AddToViewport();
+		AttributeWidget->BindToAttributes();
+	}
+
 }

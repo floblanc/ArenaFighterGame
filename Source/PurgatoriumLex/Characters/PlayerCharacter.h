@@ -51,7 +51,6 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
-
 	
 	protected:
 
@@ -93,6 +92,10 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* LightAttackAction;
 
+	/** GA Kick Ability Class */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
+	TSubclassOf<class UGameplayAbility> GA_Kick;
+
 	/** HeavyAttack Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* HeavyAttackAction;
@@ -130,6 +133,9 @@ public:
 	APlayerCharacter();
 	virtual void PossessedBy(AController* NewController) override;
 	virtual void OnRep_PlayerState() override;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void BP_TryInitFloatingHealthBar();
 
 private:
 	void InitAbilitySystemComponent();

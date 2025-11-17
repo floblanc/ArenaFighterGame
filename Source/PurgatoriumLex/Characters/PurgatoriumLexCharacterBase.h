@@ -29,10 +29,10 @@ protected:
 	void GiveDefaultAbilities();
 	void InitDefaultAttributes() const;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ability")
 	TObjectPtr<UPurgatoriumLexAbilitySystemComponent> AbilitySystemComponent;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ability")
 	TObjectPtr<UPurgatoriumLexAttributeSet> AttributeSet;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Ability")
