@@ -5,12 +5,16 @@
 #include "CoreMinimal.h"
 #include "PurgatoriumLexCharacterBase.h"
 #include "Logging/LogMacros.h"
+#include "Input/PurgatoriumLexInputConfig.h"
+#include "PurgatoriumLexGameplayTags.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UPurgatoriumLexInputComponent;
 struct FInputActionValue;
+struct FGameplayTag;
 
 UENUM(BlueprintType)
 enum class EMovementState : uint8
@@ -56,6 +60,10 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 
 	//////////////////////////////////////////////////////////
 
+	/** Input Config - Maps InputActions to GameplayTags for ability binding */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enhanced Input")
+	TObjectPtr<const UPurgatoriumLexInputConfig> InputConfig;
+
 	/** MappingContext Default*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputMappingContext* DefaultMappingContext;
@@ -92,7 +100,7 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* LightAttackAction;
 
-	/** GA Kick Ability Class */
+	/** GA Kick Ability Class - Legacy, kept for backward compatibility TODO: Remove this once the GAS implementation is complete */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
 	TSubclassOf<class UGameplayAbility> GA_Kick;
 
@@ -173,6 +181,18 @@ protected:
 
 	void LockUnlockCameraOnEnemy();
 
+	/** Update camera lock-on logic - called deterministically for rollback compatibility */
+	void UpdateCameraLockOn();
+
+	/** Handle ability input tag pressed - called by InputComponent when ability input is triggered */
+	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
+
+	/** Handle ability input tag released - called by InputComponent when ability input is released */
+	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
+
+	/** Setup legacy input bindings (used when InputConfig is not set) TODO: Remove this once the GAS implementation is complete */
+	void SetupLegacyInputBindings(UEnhancedInputComponent* EnhancedInputComponent);
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -186,6 +206,14 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void DoMoveAroundSomething(float Right, float Forward);
+
+	/** Progressive movement around locked enemy - blends circling and forward/back movement proportionally */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void DoMoveAroundSomethingProgressive(float Right, float Forward);
+
+	/** UE5 Assistant approach - direct tangent/radial movement with smooth rotation toward enemy */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void DoMoveAroundSomethingUE5Assistant(float Right, float Forward);
 	
 	/** Handles look inputs from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
@@ -287,6 +315,10 @@ public:
 	//the amount of health the player currently has
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float playerHealth;
+
+	/** Handles for ability input bindings - used to clean up bindings */
+	TArray<uint32> AbilityInputBindHandles;
+
 public:
 
 	/** Returns CameraBoom subobject **/

@@ -6,6 +6,9 @@
 #include "AbilitySystem/PurgatoriumLexAttributeSet.h"
 #include "Player/PurgatoriumLexPlayerState.h"
 #include "UI/PurgatoriumLexHUD.h"
+#include "Input/PurgatoriumLexInputComponent.h"
+#include "Input/PurgatoriumLexInputConfig.h"
+#include "PurgatoriumLexGameplayTags.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -144,22 +147,13 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 	//Perform the BluePrint Tick logic
 	//BPTick(DeltaTime);
-
-	if (bIsCameraLockedOnEnemy)
-	{
-		float distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
-		// ----distance used to calculate camera Height (Pitch)---
-		FRotator lookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), lockedOnActor->GetActorLocation());
-		lookAtRotation.Pitch -= (targetingHeighOffset - distance / 100);
-		GetController()->SetControlRotation(lookAtRotation);
-		UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tRotation on Enemy Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
-		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
-		FVector MovementVec = GetPendingMovementInputVector();
-		UE_LOG(LogTemp, Warning, TEXT("IN TICK -- Pending Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
-
-		MovementVec = GetCharacterMovement()->GetLastInputVector();
-		UE_LOG(LogTemp, Warning, TEXT("IN TICK -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
-	}
+	
+	// Update camera lock-on deterministically
+	// This is called from Tick() but is still deterministic for rollback netcode because:
+	// - It only uses actor positions and rotations (part of rollback state)
+	// - All calculations are pure functions of rollback state
+	// - As long as inputs (actor positions) are deterministic, output (camera rotation) is deterministic
+	UpdateCameraLockOn();
 }
 
 // Called to bind functionality to input
@@ -167,71 +161,77 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-		//Add Input Mapping Context
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Starting input component setup for %s"), *GetNameSafe(this));
+
+	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
-			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+				UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Added DefaultMappingContext: %s"), *GetNameSafe(DefaultMappingContext));
+			}
+			else
+			{
+				UE_LOG(LogTemplateCharacter, Warning, TEXT("[Input Setup] DefaultMappingContext is NULL! Input will not work. Please assign an Input Mapping Context in the character blueprint."));
+			}
 		}
-	}
-
-	// Set up action bindings
-	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent)) {
-		
-		//Jumping
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Triggered, this, &APlayerCharacter::DoJumpStart);
-		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &APlayerCharacter::DoJumpEnd);
-
-		//Moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Move);
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &APlayerCharacter::MoveActionStopped);
-
-		//Looking
-		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerCharacter::Look);
-
-		//Running
-		EnhancedInputComponent->BindAction(RunAction, ETriggerEvent::Triggered, this, &APlayerCharacter::StartRunning);
-		
-		//Stop Running when stop moving
-		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &APlayerCharacter::StopRunning);
-		
-		//Dash detection
-		EnhancedInputComponent->BindAction(DashAction, ETriggerEvent::Started, this, &APlayerCharacter::Dash);
-
-		//Change Posture detection
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Triggered, this, &APlayerCharacter::PostureActionTriggered);
-		EnhancedInputComponent->BindAction(PostureAction, ETriggerEvent::Completed, this, &APlayerCharacter::PostureActionStopped);
-	
-		//Light Attack
-		EnhancedInputComponent->BindAction(LightAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::LightAttack);
-
-		//Heavy Attack
-		EnhancedInputComponent->BindAction(ChargeHeavyAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::HeavyAttack);
-		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Completed, this, &APlayerCharacter::HeavyAttack);
-
-		//Special Attack
-		EnhancedInputComponent->BindAction(SpecialAttackAction, ETriggerEvent::Started, this, &APlayerCharacter::SpecialAttack);
-
-		//Guard
-		EnhancedInputComponent->BindAction(GuardAction, ETriggerEvent::Started, this, &APlayerCharacter::Guard);
-	
-		//BreakGuard
-		EnhancedInputComponent->BindAction(BreakGuardAction, ETriggerEvent::Started, this, &APlayerCharacter::BreakGuard);
-
-		//LockUnlockCameraOnEnemy
-		EnhancedInputComponent->BindAction(LockUnlockAction, ETriggerEvent::Started, this, &APlayerCharacter::LockUnlockCameraOnEnemy);
-
-		////TakeDamages
-		//EnhancedInputComponent->BindAction(TakeDamagesAction, ETriggerEvent::Started, this, &APlayerCharacter::StartDamage);
-
-		////Heal
-		//EnhancedInputComponent->BindAction(HealAction, ETriggerEvent::Started, this, &APlayerCharacter::StartHealing);	
+		else
+		{
+			UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] Failed to get EnhancedInputLocalPlayerSubsystem! Enhanced Input may not be enabled."));
+		}
 	}
 	else
 	{
-		UE_LOG(LogTemplateCharacter, Error, TEXT("'%s' Failed to find an Enhanced Input component! This template is built to use the Enhanced Input system. If you intend to use the legacy system, then you will need to update this C++ file."), *GetNameSafe(this));
+		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] Failed to get PlayerController! Input setup cannot continue."));
+		return;
 	}
+
+	// Cast to our custom input component (required for InputConfig/tag bindings)
+	UPurgatoriumLexInputComponent* PurgatoriumLexInputComponent = Cast<UPurgatoriumLexInputComponent>(PlayerInputComponent);
+	if (!PurgatoriumLexInputComponent)
+	{
+		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] '%s' Failed to find PurgatoriumLexInputComponent! Current InputComponent type: %s. Please ensure the InputComponent is set to PurgatoriumLexInputComponent in the character blueprint."), 
+			*GetNameSafe(this), *GetNameSafe(PlayerInputComponent->GetClass()));
+		return;
+	}
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Successfully cast to PurgatoriumLexInputComponent"));
+
+	// New-way only: InputConfig is mandatory
+	if (!InputConfig)
+	{
+		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] '%s' InputConfig is not set. Please assign a UPurgatoriumLexInputConfig on the character blueprint."), *GetNameSafe(this));
+		return;
+	}
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] InputConfig found: %s"), *GetNameSafe(InputConfig));
+
+	// Log InputConfig contents for debugging
+	if (InputConfig)
+	{
+		UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] NativeInputActions count: %d"), InputConfig->NativeInputActions.Num());
+		UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] AbilityInputActions count: %d"), InputConfig->AbilityInputActions.Num());
+	}
+
+	// Bind ability actions (InputAction -> InputTag), then route to ASC via Input_AbilityInputTagPressed/Released.
+	PurgatoriumLexInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased, /*out*/ AbilityInputBindHandles);
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Bound %d ability actions"), AbilityInputBindHandles.Num());
+
+	// Bind native (non-ability) actions via tags.
+	int32 NativeBindCount = 0;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Move, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ThisClass::Look, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Triggered, this, &ThisClass::DoJumpStart, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Completed, this, &ThisClass::DoJumpEnd, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Run, ETriggerEvent::Triggered, this, &ThisClass::StartRunning, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ThisClass::Dash, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Posture, ETriggerEvent::Triggered, this, &ThisClass::PostureActionTriggered, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Posture, ETriggerEvent::Completed, this, &ThisClass::PostureActionStopped, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_LockUnlock, ETriggerEvent::Started, this, &ThisClass::LockUnlockCameraOnEnemy, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Bound %d native actions"), NativeBindCount);
+	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Input setup complete for %s"), *GetNameSafe(this));
 }
 
 
@@ -308,7 +308,6 @@ void APlayerCharacter::DoMoveAroundSomething(float Right, float Forward)
 
 		UE_LOG(LogTemp, Warning, TEXT("angle : %f"), angle);
 
-		UE_LOG(LogTemp, Warning, TEXT("---------------\t\t\tAngle Calcul Time:\t\t %s.%d"), *FDateTime::Now().ToString(), FDateTime::Now().GetMillisecond());
 		UE_LOG(LogTemp, Warning, TEXT("Angle value: %f"), angle);
 		UE_LOG(LogTemp, Warning, TEXT("Distance from lockedEnemy : %f\n"), distance);
 
@@ -326,6 +325,105 @@ void APlayerCharacter::DoMoveAroundSomething(float Right, float Forward)
 	MovementVec = GetCharacterMovement()->GetLastInputVector();;
 	UE_LOG(LogTemp, Warning, TEXT("IN MOVE -- Last Input Vector : (%f, %f, %f)"), MovementVec.X, MovementVec.Y, MovementVec.Z);
 
+}
+
+void APlayerCharacter::DoMoveAroundSomethingProgressive(float Right, float Forward)
+{
+	if (!lockedOnActor || !IsValid(lockedOnActor) || !Controller)
+	{
+		return;
+	}
+
+	// Get direction from character to locked enemy (horizontal plane only)
+	FVector ToEnemy = lockedOnActor->GetActorLocation() - GetActorLocation();
+	ToEnemy.Z = 0.0f; // Ignore height difference
+	const float DistanceToEnemy = ToEnemy.Size();
+
+	ToEnemy.Normalize();
+
+	// Calculate tangent vector (perpendicular to ToEnemy, for circling around)
+	// This is the direction for pure left/right movement (grey circle path)
+	FVector TangentVector = FVector::CrossProduct(ToEnemy, FVector::UpVector);
+	TangentVector.Normalize();
+
+	// Calculate input magnitude for movement speed
+	const float InputMagnitude = FMath::Sqrt(Right * Right + Forward * Forward);
+	
+	// Progressive blending based on input:
+	// - Pure left/right (Forward ≈ 0): Mostly tangent (circling)
+	// - Pure forward (Right ≈ 0): Mostly toward enemy
+	// - Pure back (Right ≈ 0, Forward < 0): Mostly away from enemy
+	// - Diagonal: Blend proportionally
+	
+	// Normalize inputs to get direction weights
+	// Forward component: how much toward/away from enemy
+	// Right component: how much circling around enemy
+	const float ForwardWeight = FMath::Abs(Forward) / FMath::Max(InputMagnitude, 0.001f);
+	const float RightWeight = FMath::Abs(Right) / FMath::Max(InputMagnitude, 0.001f);
+	
+	// Blend the two directions proportionally
+	// More forward = more toward enemy, more right = more circling
+	FVector MovementDirection;
+	
+	if (Forward >= 0.0f)
+	{
+		// Forward or diagonal forward: blend toward enemy + circling
+		MovementDirection = (ToEnemy * ForwardWeight) + (TangentVector * FMath::Sign(Right) * RightWeight);
+	}
+	else
+	{
+		// Backward or diagonal backward: blend away from enemy + circling
+		FVector AwayFromEnemy = -ToEnemy;
+		MovementDirection = (AwayFromEnemy * ForwardWeight) + (TangentVector * FMath::Sign(Right) * RightWeight);
+	}
+	
+	MovementDirection.Normalize();
+
+	// Apply movement with input magnitude (proportional to stick tilt)
+	AddMovementInput(MovementDirection, InputMagnitude);
+}
+
+void APlayerCharacter::DoMoveAroundSomethingUE5Assistant(float Right, float Forward)
+{
+	if (!lockedOnActor || !IsValid(lockedOnActor) || !Controller)
+	{
+		return;
+	}
+
+	FVector EnemyLoc = lockedOnActor->GetActorLocation();
+	FVector MyLoc = GetActorLocation();
+
+	// Radial direction: from enemy to player (outward)
+	FVector ToPlayer = MyLoc - EnemyLoc;
+	ToPlayer.Z = 0.0f;
+
+	if (ToPlayer.IsNearlyZero())
+	{
+		// Fallback to default movement to avoid issues
+		AddMovementInput(GetActorForwardVector(), Forward);
+		AddMovementInput(GetActorRightVector(), Right);
+		return;
+	}
+
+	// Radial direction (outward from enemy)
+	FVector RadialDir = ToPlayer.GetSafeNormal();
+
+	// Tangent direction (perpendicular, for orbiting)
+	FVector TangentDir = FVector::CrossProduct(FVector::UpVector, RadialDir);
+	TangentDir.Normalize();
+
+	// Orbit sideways with horizontal stick input (X = Right)
+	AddMovementInput(TangentDir, Right);
+
+	// Move in/out with vertical stick input (Y = Forward)
+	// Forward = positive = inward (toward enemy) - inverted for intuitive control
+	// Back = negative = outward (away from enemy)
+	AddMovementInput(-RadialDir, Forward);
+
+	// Face enemy smoothly
+	FRotator TargetRotation = UKismetMathLibrary::FindLookAtRotation(MyLoc, EnemyLoc);
+	FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, GetWorld()->GetDeltaSeconds(), 10.0f);
+	SetActorRotation(FRotator(0.0f, NewRotation.Yaw, 0.0f));
 }
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
@@ -624,12 +722,39 @@ void APlayerCharacter::SetTeamId(int teamId)
 	TeamId = teamId;
 }
 
+void APlayerCharacter::UpdateCameraLockOn()
+{
+	// This function is called from Tick() but is deterministic for rollback netcode
+	// It only uses actor positions and rotations (which are part of rollback state)
+	// All calculations are pure functions of rollback state, ensuring determinism
+	
+	if (bIsCameraLockedOnEnemy && lockedOnActor && IsValid(lockedOnActor))
+	{
+		// Calculate distance for camera height adjustment
+		const float Distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size();
+		
+		// Calculate look-at rotation
+		FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(
+			GetActorLocation(), 
+			lockedOnActor->GetActorLocation()
+		);
+		
+		// Adjust pitch based on distance (closer = higher pitch)
+		LookAtRotation.Pitch -= (targetingHeighOffset - Distance / 100.0f);
+		
+		// Apply rotation to controller
+		if (AController* MyController = GetController())
+		{
+			MyController->SetControlRotation(LookAtRotation);
+		}
+	}
+}
+
 void APlayerCharacter::LockUnlockCameraOnEnemy()
 {
 	if (bIsCameraLockedOnEnemy)
 	{
 		//UnlockCameraFromEnemy
-		UE_LOG(LogTemp, Warning, TEXT("CAMERA UNLOCKED\n"));
 		bIsCameraLockedOnEnemy = false;
 		lockedOnActor = nullptr;
 		UnlockCharacterBackFromCamera();
@@ -667,29 +792,75 @@ void APlayerCharacter::LockUnlockCameraOnEnemy()
 	}
 }
 
+void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
+{
+	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+	{
+		ASC->AbilityInputTagPressed(InputTag);
+		// Process input immediately for rollback netcode compatibility (frame-accurate input)
+		ASC->ProcessAbilityInput(0.0f, false);
+	}
+}
+
+void APlayerCharacter::Input_AbilityInputTagReleased(FGameplayTag InputTag)
+{
+	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+	{
+		ASC->AbilityInputTagReleased(InputTag);
+		// Process input immediately for rollback netcode compatibility (frame-accurate input)
+		ASC->ProcessAbilityInput(0.0f, false);
+	}
+}
+
+void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* EnhancedInputComponent)
+{
+	check(EnhancedInputComponent);
+
+	// Helper lambda to safely bind an action if it exists
+	auto BindActionIfValid = [EnhancedInputComponent, this](const UInputAction* Action, ETriggerEvent TriggerEvent, auto Func)
+	{
+		if (Action)
+		{
+			EnhancedInputComponent->BindAction(Action, TriggerEvent, this, Func);
+		}
+	};
+
+	// Movement & Camera
+	BindActionIfValid(MoveAction, ETriggerEvent::Triggered, &APlayerCharacter::Move);
+	BindActionIfValid(MoveAction, ETriggerEvent::Completed, &APlayerCharacter::MoveActionStopped);
+	BindActionIfValid(LookAction, ETriggerEvent::Triggered, &APlayerCharacter::Look);
+
+	// Jump
+	BindActionIfValid(JumpAction, ETriggerEvent::Triggered, &APlayerCharacter::DoJumpStart);
+	BindActionIfValid(JumpAction, ETriggerEvent::Completed, &APlayerCharacter::DoJumpEnd);
+
+	// Movement States
+	BindActionIfValid(RunAction, ETriggerEvent::Triggered, &APlayerCharacter::StartRunning);
+	BindActionIfValid(DashAction, ETriggerEvent::Started, &APlayerCharacter::Dash);
+
+	// Posture
+	BindActionIfValid(PostureAction, ETriggerEvent::Triggered, &APlayerCharacter::PostureActionTriggered);
+	BindActionIfValid(PostureAction, ETriggerEvent::Completed, &APlayerCharacter::PostureActionStopped);
+
+	// Combat
+	BindActionIfValid(LightAttackAction, ETriggerEvent::Started, &APlayerCharacter::LightAttack);
+	BindActionIfValid(ChargeHeavyAttackAction, ETriggerEvent::Started, &APlayerCharacter::ChargeHeavyAttack);
+	BindActionIfValid(HeavyAttackAction, ETriggerEvent::Completed, &APlayerCharacter::HeavyAttack);
+	BindActionIfValid(SpecialAttackAction, ETriggerEvent::Started, &APlayerCharacter::SpecialAttack);
+	BindActionIfValid(GuardAction, ETriggerEvent::Started, &APlayerCharacter::Guard);
+	BindActionIfValid(BreakGuardAction, ETriggerEvent::Started, &APlayerCharacter::BreakGuard);
+
+	// Camera Control
+	BindActionIfValid(LockUnlockAction, ETriggerEvent::Started, &APlayerCharacter::LockUnlockCameraOnEnemy);
+}
+
 void APlayerCharacter::LightAttack() {
 	UE_LOG(LogTemp, Warning, TEXT("LightAttack\n"));
 	
-	// Get the Ability System Component (equivalent to "Get Ability System Component" node)
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
-	{
-		// Try to activate GA Kick ability (equivalent to "Try Activate Ability by Class" node)
-		// Note: You'll need to define the GA_Kick class or use the appropriate ability class
-		// For now, using a placeholder - replace with your actual GA Kick class
-		if (GA_Kick)
-		{
-			ASC->TryActivateAbilityByClass(GA_Kick, true); // true = Allow Remote Activation
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("GA_Kick not set in PlayerCharacter"));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Ability System Component not found"));
-	}
-	
+	// New-way note:
+	// Light attack should be triggered via InputConfig -> AbilityInputActions -> InputTag.LightAttack,
+	// which routes into Input_AbilityInputTagPressed/Released and the ASC.
+	// This function is now kept only for debugging / legacy callers.
 	bAttackHasBeenUsed = true;
 	UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));
 	//TakeDamages(0.02f);
