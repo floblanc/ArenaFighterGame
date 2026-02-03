@@ -5,6 +5,7 @@
 #include "AbilitySystem/PurgatoriumLexAbilitySystemComponent.h"
 #include "AbilitySystem/PurgatoriumLexAttributeSet.h"
 #include "Player/PurgatoriumLexPlayerState.h"
+#include "GameFramework/PlayerState.h"
 #include "UI/PurgatoriumLexHUD.h"
 #include "Input/PurgatoriumLexInputComponent.h"
 #include "Input/PurgatoriumLexInputConfig.h"
@@ -15,10 +16,17 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
 #include "InputActionValue.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "CollisionQueryParams.h"
 
 // #include "PurgatoriumLexMacros.h"
 
@@ -50,6 +58,10 @@ APlayerCharacter::APlayerCharacter()
 	
 	lockedOnActor = nullptr;
 	targetingHeighOffset = 30.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
+
+	// Lock-on: defaults here; tune in Blueprint or replace with lobby/config later.
+	LockOnMaxDistance = 2000.f;
+	LockOnFOVDegrees = 45.f;
 
 	playerHealth = 1.00f;
 	bAttackHasBeenUsed = false;
@@ -93,12 +105,32 @@ void APlayerCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
+	// TEMPORARY: Controlled character gets team from player index (BeginPlay may have run before we had PlayerState).
+	if (APlayerState* PS = GetPlayerState())
+	{
+		SetTeamId(PS->GetPlayerId() % 2);
+	}
+
 	InitAbilitySystemComponent();
 	GiveDefaultAbilities();
+	GrantAbilitiesWithInputTags();
 	InitDefaultAttributes();
 	InitHUD();
 
 	BP_TryInitFloatingHealthBar();
+}
+
+void APlayerCharacter::GrantAbilitiesWithInputTags()
+{
+	UPurgatoriumLexAbilitySystemComponent* LexASC = Cast<UPurgatoriumLexAbilitySystemComponent>(AbilitySystemComponent);
+	if (!LexASC || !HasAuthority()) return;
+
+	for (const FAbilityInputMapping& Mapping : AbilityInputMappings)
+	{
+		if (!Mapping.AbilityClass || !Mapping.InputTag.IsValid()) continue;
+
+		LexASC->GrantAbilityWithInputTag(Mapping.AbilityClass, Mapping.InputTag, 1);
+	}
 }
 
 void APlayerCharacter::OnRep_PlayerState()
@@ -137,7 +169,17 @@ void APlayerCharacter::InitHUD() const
 void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
- 
+
+	// ========== TEMPORARY: Team assignation. Remove when teams come from lobby/champ select. ==========
+	if (APlayerState* PS = GetPlayerState())
+	{
+		SetTeamId(PS->GetPlayerId() % 2);
+	}
+	else
+	{
+		SetTeamId(1); // Unpossessed = enemy team for lock-on
+	}
+	// ========== END TEMPORARY ==========
 }
 
 // Called every frame
@@ -161,7 +203,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Starting input component setup for %s"), *GetNameSafe(this));
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Starting input component setup for %s"), *GetNameSafe(this));
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
@@ -171,21 +213,21 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			if (DefaultMappingContext)
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
-				UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Added DefaultMappingContext: %s"), *GetNameSafe(DefaultMappingContext));
+				UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Added DefaultMappingContext: %s"), DefaultMappingContext ? *DefaultMappingContext->GetName() : TEXT("null"));
 			}
 			else
 			{
-				UE_LOG(LogTemplateCharacter, Warning, TEXT("[Input Setup] DefaultMappingContext is NULL! Input will not work. Please assign an Input Mapping Context in the character blueprint."));
+				UE_LOG(LogTemp, Warning, TEXT("[Input Setup] DefaultMappingContext is NULL! Input will not work. Please assign an Input Mapping Context in the character blueprint."));
 			}
 		}
 		else
 		{
-			UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] Failed to get EnhancedInputLocalPlayerSubsystem! Enhanced Input may not be enabled."));
+			UE_LOG(LogTemp, Error, TEXT("[Input Setup] Failed to get EnhancedInputLocalPlayerSubsystem! Enhanced Input may not be enabled."));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] Failed to get PlayerController! Input setup cannot continue."));
+		UE_LOG(LogTemp, Error, TEXT("[Input Setup] Failed to get PlayerController! Input setup cannot continue."));
 		return;
 	}
 
@@ -193,34 +235,35 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	UPurgatoriumLexInputComponent* PurgatoriumLexInputComponent = Cast<UPurgatoriumLexInputComponent>(PlayerInputComponent);
 	if (!PurgatoriumLexInputComponent)
 	{
-		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] '%s' Failed to find PurgatoriumLexInputComponent! Current InputComponent type: %s. Please ensure the InputComponent is set to PurgatoriumLexInputComponent in the character blueprint."), 
+		UE_LOG(LogTemp, Error, TEXT("[Input Setup] '%s' Failed to find PurgatoriumLexInputComponent! Current InputComponent type: %s. Please ensure the InputComponent is set to PurgatoriumLexInputComponent in the character blueprint."), 
 			*GetNameSafe(this), *GetNameSafe(PlayerInputComponent->GetClass()));
 		return;
 	}
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Successfully cast to PurgatoriumLexInputComponent"));
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Successfully cast to PurgatoriumLexInputComponent"));
 
 	// New-way only: InputConfig is mandatory
 	if (!InputConfig)
 	{
-		UE_LOG(LogTemplateCharacter, Error, TEXT("[Input Setup] '%s' InputConfig is not set. Please assign a UPurgatoriumLexInputConfig on the character blueprint."), *GetNameSafe(this));
+		UE_LOG(LogTemp, Error, TEXT("[Input Setup] '%s' InputConfig is not set. Please assign a UPurgatoriumLexInputConfig on the character blueprint."), *GetNameSafe(this));
 		return;
 	}
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] InputConfig found: %s"), *GetNameSafe(InputConfig));
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] InputConfig found: %s"), *GetNameSafe(InputConfig));
 
 	// Log InputConfig contents for debugging
 	if (InputConfig)
 	{
-		UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] NativeInputActions count: %d"), InputConfig->NativeInputActions.Num());
-		UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] AbilityInputActions count: %d"), InputConfig->AbilityInputActions.Num());
+		UE_LOG(LogTemp, Warning, TEXT("[Input Setup] NativeInputActions count: %d"), InputConfig->NativeInputActions.Num());
+		UE_LOG(LogTemp, Warning, TEXT("[Input Setup] AbilityInputActions count: %d"), InputConfig->AbilityInputActions.Num());
 	}
 
 	// Bind ability actions (InputAction -> InputTag), then route to ASC via Input_AbilityInputTagPressed/Released.
 	PurgatoriumLexInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased, /*out*/ AbilityInputBindHandles);
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Bound %d ability actions"), AbilityInputBindHandles.Num());
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Bound %d ability actions"), AbilityInputBindHandles.Num());
 
 	// Bind native (non-ability) actions via tags.
 	int32 NativeBindCount = 0;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Move, ETriggerEvent::Triggered, this, &ThisClass::Move, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Move, ETriggerEvent::Completed, this, &ThisClass::MoveActionStopped, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Look, ETriggerEvent::Triggered, this, &ThisClass::Look, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Triggered, this, &ThisClass::DoJumpStart, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Completed, this, &ThisClass::DoJumpEnd, /*bLogIfNotFound=*/ true)) NativeBindCount++;
@@ -230,13 +273,14 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Posture, ETriggerEvent::Completed, this, &ThisClass::PostureActionStopped, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_LockUnlock, ETriggerEvent::Started, this, &ThisClass::LockUnlockCameraOnEnemy, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Bound %d native actions"), NativeBindCount);
-	UE_LOG(LogTemplateCharacter, Log, TEXT("[Input Setup] Input setup complete for %s"), *GetNameSafe(this));
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Bound %d native actions"), NativeBindCount);
+	UE_LOG(LogTemp, Warning, TEXT("[Input Setup] Input setup complete for %s"), *GetNameSafe(this));
 }
 
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[Input] Move() received - if you see this when pressing WASD, your Input Mapping Context has key mappings"));
 	bIsMoving = ((!(bIsInAttackAnimation)) || GetCharacterMovement()->IsFalling()) && !bIsCharging;
 	UE_LOG(LogTemp, Warning, TEXT("bIsMoving : %d (DETAILS : bIsInAttackAnimation = %d and GetCharacterMovement()->IsFalling() = %d)"), bIsMoving, bIsInAttackAnimation, GetCharacterMovement()->IsFalling());
 
@@ -678,6 +722,7 @@ void APlayerCharacter::SetPostureToNeutral()
 void APlayerCharacter::MoveActionStopped()
 {
 	bIsMoving = false;
+	StopRunning(); // Stop running when stop moving
 	if (bIsPostureActionActive == false)
 	{
 		SetPostureToNeutral();
@@ -705,12 +750,12 @@ void APlayerCharacter::TryChangePostureByDefaultMovement(const FInputActionValue
 
 bool APlayerCharacter::IsEnemy(int id)
 {
-	return (id == TeamId);
+	return (id != TeamId);
 }
 
-bool APlayerCharacter::IsEnemy(APlayerCharacter *fighter)
+bool APlayerCharacter::IsEnemy(APlayerCharacter* fighter)
 {
-	return (fighter->GetTeamId() == TeamId);
+	return fighter && (fighter->GetTeamId() != TeamId);
 }
 
 int  APlayerCharacter::GetTeamId()
@@ -720,6 +765,69 @@ int  APlayerCharacter::GetTeamId()
 void APlayerCharacter::SetTeamId(int teamId)
 {
 	TeamId = teamId;
+}
+
+void APlayerCharacter::RefreshLockOnCandidates()
+{
+	lockOnCandidates.Empty();
+
+	UWorld* World = GetWorld();
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!World || !PC) return;
+
+	// --- Setup: view and viewport ---
+	const FVector MyLoc = GetActorLocation();
+	UCameraComponent* Cam = GetFollowCamera();
+	const FVector ViewOrigin = Cam ? Cam->GetComponentLocation() : MyLoc;
+	const FVector ViewDirection = GetControlRotation().Vector();
+
+	FVector2D ViewportSize(1.f, 1.f);
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->GetViewportSize(ViewportSize);
+		ViewportSize.X = FMath::Max(1.f, ViewportSize.X);
+		ViewportSize.Y = FMath::Max(1.f, ViewportSize.Y);
+	}
+
+	// --- Collect valid enemy candidates ---
+	TArray<AActor*> Found;
+	UGameplayStatics::GetAllActorsOfClass(World, APlayerCharacter::StaticClass(), Found);
+
+	for (AActor* Actor : Found)
+	{
+		if (Actor == this || !IsValid(Actor)) continue;
+
+		APlayerCharacter* Other = Cast<APlayerCharacter>(Actor);
+		if (!Other || !IsEnemy(Other)) continue;
+
+		const FVector OtherLoc = Other->GetActorLocation();
+		const float DistSq = (OtherLoc - MyLoc).SizeSquared();
+		if (DistSq > LockOnMaxDistance * LockOnMaxDistance) continue;
+
+		// In front of view (control rotation)
+		const FVector ToEnemy = (OtherLoc - ViewOrigin).GetSafeNormal();
+		if (FVector::DotProduct(ViewDirection, ToEnemy) <= 0.f) continue;
+
+		// On screen (pixel bounds)
+		FVector2D ScreenPos;
+		if (!PC->ProjectWorldLocationToScreen(OtherLoc, ScreenPos, true)) continue;
+		if (ScreenPos.X < 0.f || ScreenPos.X > ViewportSize.X || ScreenPos.Y < 0.f || ScreenPos.Y > ViewportSize.Y) continue;
+
+		// Not occluded
+		FCollisionQueryParams TraceParams;
+		TraceParams.AddIgnoredActor(this);
+		TraceParams.AddIgnoredActor(Other);
+		FHitResult Hit;
+		if (World->LineTraceSingleByChannel(Hit, ViewOrigin, OtherLoc + ToEnemy * 50.f, ECC_Visibility, TraceParams)) continue;
+
+		lockOnCandidates.Add(Actor);
+	}
+
+	// Closest first
+	lockOnCandidates.Sort([MyLoc](const AActor& A, const AActor& B)
+	{
+		return FVector::DistSquared(MyLoc, A.GetActorLocation()) < FVector::DistSquared(MyLoc, B.GetActorLocation());
+	});
 }
 
 void APlayerCharacter::UpdateCameraLockOn()
@@ -752,8 +860,10 @@ void APlayerCharacter::UpdateCameraLockOn()
 
 void APlayerCharacter::LockUnlockCameraOnEnemy()
 {
+	UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function Entered"));
 	if (bIsCameraLockedOnEnemy)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function unlocking camera from enemy"));
 		//UnlockCameraFromEnemy
 		bIsCameraLockedOnEnemy = false;
 		lockedOnActor = nullptr;
@@ -768,9 +878,11 @@ void APlayerCharacter::LockUnlockCameraOnEnemy()
 	}
 	else
 	{
-		//LockCameraOnEnemy
+		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function locking camera on enemy"));
+		RefreshLockOnCandidates();
 		if (lockOnCandidates.Num() > 0)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function enemy found, locking camera on enemy"));
 			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
 			if (lockedOnActor)
 			{
@@ -789,11 +901,16 @@ void APlayerCharacter::LockUnlockCameraOnEnemy()
 				}
 			}
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function no enemy found, locking camera on character back"));
+		}
 	}
 }
 
 void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[Input] Ability input pressed: %s"), *InputTag.ToString());
 	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
 	{
 		ASC->AbilityInputTagPressed(InputTag);
@@ -827,7 +944,7 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 
 	// Movement & Camera
 	BindActionIfValid(MoveAction, ETriggerEvent::Triggered, &APlayerCharacter::Move);
-	BindActionIfValid(MoveAction, ETriggerEvent::Completed, &APlayerCharacter::MoveActionStopped);
+	BindActionIfValid(MoveAction, ETriggerEvent::Completed, &APlayerCharacter::MoveActionStopped); // also calls StopRunning
 	BindActionIfValid(LookAction, ETriggerEvent::Triggered, &APlayerCharacter::Look);
 
 	// Jump

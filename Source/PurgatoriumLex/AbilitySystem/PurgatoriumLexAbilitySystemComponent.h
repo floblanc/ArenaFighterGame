@@ -48,6 +48,13 @@ public:
 	 */
 	void ClearAbilityInput();
 
+	/**
+	 * Grants an ability and binds it to an input tag. Use this instead of setting spec tags directly.
+	 * The mapping is stored in this ASC so input triggers the correct ability.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "PurgatoriumLex|Ability")
+	FGameplayAbilitySpecHandle GrantAbilityWithInputTag(TSubclassOf<UGameplayAbility> AbilityClass, const FGameplayTag& InputTag, int32 Level = 1);
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -64,4 +71,7 @@ protected:
 
 	// Handles to abilities that have their input held.
 	TArray<FGameplayAbilitySpecHandle> InputHeldSpecHandles;
+
+	// Input tag -> ability spec handles. Maintained when GrantAbilityWithInputTag is used.
+	TMap<FGameplayTag, TArray<FGameplayAbilitySpecHandle>> InputTagToSpecHandles;
 };

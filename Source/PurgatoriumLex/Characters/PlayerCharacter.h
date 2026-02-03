@@ -7,6 +7,7 @@
 #include "Logging/LogMacros.h"
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
+#include "GameplayTagContainer.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -15,6 +16,19 @@ class UInputAction;
 class UPurgatoriumLexInputComponent;
 struct FInputActionValue;
 struct FGameplayTag;
+
+/** Maps a Gameplay Ability to an Input Tag. Used to grant abilities and bind them to input in one place. */
+USTRUCT(BlueprintType)
+struct FAbilityInputMapping
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability")
+	TSubclassOf<class UGameplayAbility> AbilityClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability", Meta = (Categories = "InputTag"))
+	FGameplayTag InputTag;
+};
 
 UENUM(BlueprintType)
 enum class EMovementState : uint8
@@ -100,9 +114,9 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* LightAttackAction;
 
-	/** GA Kick Ability Class - Legacy, kept for backward compatibility TODO: Remove this once the GAS implementation is complete */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
-	TSubclassOf<class UGameplayAbility> GA_Kick;
+	/** Abilities granted with their input tag. One entry per ability (e.g. GA_Kick -> InputTag.LightAttack). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities", Meta = (TitleProperty = "AbilityClass"))
+	TArray<FAbilityInputMapping> AbilityInputMappings;
 
 	/** HeavyAttack Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
@@ -183,6 +197,12 @@ protected:
 
 	/** Update camera lock-on logic - called deterministically for rollback compatibility */
 	void UpdateCameraLockOn();
+
+	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
+	void RefreshLockOnCandidates();
+
+	/** Grants all abilities from AbilityInputMappings with their input tags. Called from PossessedBy. */
+	void GrantAbilitiesWithInputTags();
 
 	/** Handle ability input tag pressed - called by InputComponent when ability input is triggered */
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
@@ -311,6 +331,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
 	float targetingHeighOffset;
+
+	/** Lock-on: max distance. Tune here or in Blueprint; replace with lobby/config later if needed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "100", ClampMax = "5000"))
+	float LockOnMaxDistance = 2000.f;
+
+	/** Lock-on: half-angle in degrees from camera view; only actors in this cone are candidates (e.g. 45 = 90° cone). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "5", ClampMax = "90"))
+	float LockOnFOVDegrees = 45.f;
 
 	//the amount of health the player currently has
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
