@@ -38,34 +38,11 @@ void UPurgatoriumLexAbilitySystemComponent::TickComponent(float DeltaTime, ELeve
 	}
 }
 
-FGameplayAbilitySpecHandle UPurgatoriumLexAbilitySystemComponent::GrantAbilityWithInputTag(TSubclassOf<UGameplayAbility> AbilityClass, const FGameplayTag& InputTag, int32 Level)
-{
-	if (!AbilityClass || !InputTag.IsValid()) return FGameplayAbilitySpecHandle();
-
-	FGameplayAbilitySpec Spec(AbilityClass, Level);
-	FGameplayAbilitySpecHandle Handle = GiveAbility(Spec);
-	if (Handle.IsValid())
-	{
-		TArray<FGameplayAbilitySpecHandle>& Handles = InputTagToSpecHandles.FindOrAdd(InputTag);
-		Handles.AddUnique(Handle);
-	}
-	return Handle;
-}
-
 void UPurgatoriumLexAbilitySystemComponent::AbilityInputTagPressed(const FGameplayTag& InputTag)
 {
 	if (InputTag.IsValid())
 	{
-		// Handles from GrantAbilityWithInputTag (works in UE 5.7 without DynamicSpecSourceTags)
-		if (const TArray<FGameplayAbilitySpecHandle>* Handles = InputTagToSpecHandles.Find(InputTag))
-		{
-			for (const FGameplayAbilitySpecHandle& Handle : *Handles)
-			{
-				InputPressedSpecHandles.AddUnique(Handle);
-				InputHeldSpecHandles.AddUnique(Handle);
-			}
-		}
-		// Legacy: abilities with DynamicSpecSourceTags (if engine supports it)
+		// Find all abilities that have this Input Tag and queue them for activation
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
 			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))
@@ -81,16 +58,7 @@ void UPurgatoriumLexAbilitySystemComponent::AbilityInputTagReleased(const FGamep
 {
 	if (InputTag.IsValid())
 	{
-		// Handles from GrantAbilityWithInputTag
-		if (const TArray<FGameplayAbilitySpecHandle>* Handles = InputTagToSpecHandles.Find(InputTag))
-		{
-			for (const FGameplayAbilitySpecHandle& Handle : *Handles)
-			{
-				InputReleasedSpecHandles.AddUnique(Handle);
-				InputHeldSpecHandles.Remove(Handle);
-			}
-		}
-		// Legacy: abilities with DynamicSpecSourceTags
+		// Find all abilities that have this Input Tag and handle their release
 		for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
 		{
 			if (AbilitySpec.Ability && (AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag)))

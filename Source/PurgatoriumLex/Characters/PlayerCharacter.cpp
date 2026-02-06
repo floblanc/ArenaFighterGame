@@ -908,9 +908,30 @@ void APlayerCharacter::LockUnlockCameraOnEnemy()
 	}
 }
 
+bool APlayerCharacter::CanActivateAbilityForInputTag_Implementation(FGameplayTag InputTag) const
+{
+	using namespace PurgatoriumLexGameplayTags;
+
+	if (InputTag == InputTag_LightAttack)   return CanPerformLightAttack();
+	// if (InputTag == InputTag_HeavyAttack) return CanPerformHeavyAttack();
+	// if (InputTag == InputTag_SpecialAttack) return CanPerformSpecialAttack();
+
+	return true; // no gate for other tags
+}
+
+bool APlayerCharacter::CanPerformLightAttack_Implementation() const
+{
+	const UCharacterMovementComponent* Movement = GetCharacterMovement();
+	return Movement
+		&& !Movement->IsFalling()
+		&& !bIsInAttackAnimation
+		&& !bIsCharging;
+}
+
 void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Input] Ability input pressed: %s"), *InputTag.ToString());
+	if (!CanActivateAbilityForInputTag(InputTag)) return;
+
 	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
 	{
 		ASC->AbilityInputTagPressed(InputTag);
