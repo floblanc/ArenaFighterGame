@@ -7,6 +7,7 @@
 #include "Logging/LogMacros.h"
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
+#include "GameplayTagContainer.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -42,6 +43,21 @@ enum class EPosture : uint8
 };
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
+
+struct FGameplayTag;
+
+/** Maps a Gameplay Ability to an Input Tag. Used to grant abilities and bind them to input in one place. */
+USTRUCT(BlueprintType)
+struct FAbilityInputMapping
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability")
+	TSubclassOf<class UGameplayAbility> AbilityClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability", Meta = (Categories = "InputTag"))
+	FGameplayTag InputTag;
+};
 
 UCLASS()
 class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
@@ -88,9 +104,13 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* RunAction;
 
-	/** Dash Input Action */
+	/** Dodge Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* DashAction;
+	class UInputAction* DodgeAction;
+
+	/** Roll Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* RollAction;
 
 	/** Posture Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
@@ -100,17 +120,21 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* LightAttackAction;
 
+	/** Abilities granted with their input tag. One entry per ability (e.g. GA_Kick -> InputTag.LightAttack). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities", Meta = (TitleProperty = "AbilityClass"))
+	TArray<FAbilityInputMapping> AbilityInputMappings;
+
 	/** GA Kick Ability Class - Legacy, kept for backward compatibility TODO: Remove this once the GAS implementation is complete */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
 	TSubclassOf<class UGameplayAbility> GA_Kick;
 
-	/** HeavyAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* HeavyAttackAction;
-
-	/** HeavyAttack Input Action */
+	/** Start Charge Attack Input Action - pressed to begin charging */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
-	class UInputAction* ChargeHeavyAttackAction;
+	class UInputAction* StartChargeAttackAction;
+
+	/** Charge Attack Input Action - released to execute the charged attack */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	class UInputAction* ChargeAttackAction;
 
 	/** SpecialAttack Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
@@ -164,8 +188,8 @@ protected:
 	void HandlePostureInputX(float Value);
 
 	void LightAttack();
-	void ChargeHeavyAttack();
-	void HeavyAttack();
+	void StartChargeAttack();
+	void ChargeAttack();
 	void SpecialAttack();
 
 	void Guard();
@@ -183,6 +207,22 @@ protected:
 
 	/** Update camera lock-on logic - called deterministically for rollback compatibility */
 	void UpdateCameraLockOn();
+
+	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
+	void RefreshLockOnCandidates();
+
+	/** Grants all abilities from AbilityInputMappings with their input tags. Called from PossessedBy. */
+	void GrantAbilitiesWithInputTags();
+
+	/** Single gate for all ability input: return false to block forwarding this tag to the ASC. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Abilities")
+	bool CanActivateAbilityForInputTag(FGameplayTag InputTag) const;
+	virtual bool CanActivateAbilityForInputTag_Implementation(FGameplayTag InputTag) const;
+
+	/** Conditions for LightAttack (grounded, not attacking, not charging). Override in Blueprint to extend. */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Abilities")
+	bool CanPerformLightAttack() const;
+	virtual bool CanPerformLightAttack_Implementation() const;
 
 	/** Handle ability input tag pressed - called by InputComponent when ability input is triggered */
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
@@ -227,8 +267,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoJumpEnd();
 
-	// Called for dash input
-	void Dash();
+	void Roll();
 
 	// Called for Posture Action
 	void PostureActionTriggered(const FInputActionValue& Value);
@@ -266,10 +305,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	bool bIsRunning;
-
-	// Dash variables
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
-	float DashDistance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Actions")
 	bool bAttackHasBeenUsed;
@@ -311,6 +346,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
 	float targetingHeighOffset;
+
+	/** Lock-on: max distance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "100", ClampMax = "5000"))
+	float LockOnMaxDistance = 2000.f;
+
+	/** Lock-on: half-angle in degrees from camera view (unused when using screen projection). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "5", ClampMax = "90"))
+	float LockOnFOVDegrees = 45.f;
 
 	//the amount of health the player currently has
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")

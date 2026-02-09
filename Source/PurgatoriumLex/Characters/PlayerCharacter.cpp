@@ -50,8 +50,6 @@ APlayerCharacter::APlayerCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	DashDistance = 750.0f;
-
 	SetPostureToNeutral();
 	bIsCameraLockedOnCharacterBack = false;
 	bIsCameraLockedOnEnemy = false;
@@ -268,7 +266,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Triggered, this, &ThisClass::DoJumpStart, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Jump, ETriggerEvent::Completed, this, &ThisClass::DoJumpEnd, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Run, ETriggerEvent::Triggered, this, &ThisClass::StartRunning, /*bLogIfNotFound=*/ true)) NativeBindCount++;
-	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Dash, ETriggerEvent::Started, this, &ThisClass::Dash, /*bLogIfNotFound=*/ true)) NativeBindCount++;
+	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Roll, ETriggerEvent::Started, this, &ThisClass::Roll, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Posture, ETriggerEvent::Triggered, this, &ThisClass::PostureActionTriggered, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_Posture, ETriggerEvent::Completed, this, &ThisClass::PostureActionStopped, /*bLogIfNotFound=*/ true)) NativeBindCount++;
 	if (PurgatoriumLexInputComponent->BindNativeAction(InputConfig, PurgatoriumLexGameplayTags::InputTag_LockUnlock, ETriggerEvent::Started, this, &ThisClass::LockUnlockCameraOnEnemy, /*bLogIfNotFound=*/ true)) NativeBindCount++;
@@ -558,40 +556,9 @@ void APlayerCharacter::StopRunning()
 	GetCharacterMovement()->MaxWalkSpeed = WalkingSpeed; // Reset to walking speed
 }
 
-void APlayerCharacter::Dash()
+void APlayerCharacter::Roll()
 {
-	// Check if the controller is valid
-	if (Controller != nullptr && !bIsCharging)
-	{
-		// Get the last movement input vector
-		FVector MovementVector = GetCharacterMovement()->GetLastInputVector();
-		UE_LOG(LogTemp, Warning, TEXT("Last Input Vector : (%f, %f, %f)"), MovementVector.X, MovementVector.Y, MovementVector.Z);
-
-		if (MovementVector.IsNearlyZero()) // If there's no movement input, set default to zero
-		{
-			MovementVector = FVector::ZeroVector;
-		}
-
-		// Normalize the vector
-		MovementVector.Normalize();
-
-		// Snap to the closest cardinal direction
-		// if (FMath::Abs(MovementVector.X) > FMath::Abs(MovementVector.Y))
-		// {
-		// 	MovementVector = ForwardDirection * MovementVector.Y;
-		// }
-		// else
-		// {
-		// 	MovementVector = RightDirection * MovementVector.X;
-		// }
-
-		FVector DashVector = MovementVector * DashDistance;
-		
-		// Apply the impulse to the character movement component
-		GetCharacterMovement()->AddImpulse(DashVector, true);
-
-		UE_LOG(LogTemp, Warning, TEXT("Dashing!"));
-	}
+	// TODO: implement roll or bind to ability
 }
 
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
@@ -974,7 +941,6 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 
 	// Movement States
 	BindActionIfValid(RunAction, ETriggerEvent::Triggered, &APlayerCharacter::StartRunning);
-	BindActionIfValid(DashAction, ETriggerEvent::Started, &APlayerCharacter::Dash);
 
 	// Posture
 	BindActionIfValid(PostureAction, ETriggerEvent::Triggered, &APlayerCharacter::PostureActionTriggered);
@@ -982,8 +948,8 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 
 	// Combat
 	BindActionIfValid(LightAttackAction, ETriggerEvent::Started, &APlayerCharacter::LightAttack);
-	BindActionIfValid(ChargeHeavyAttackAction, ETriggerEvent::Started, &APlayerCharacter::ChargeHeavyAttack);
-	BindActionIfValid(HeavyAttackAction, ETriggerEvent::Completed, &APlayerCharacter::HeavyAttack);
+	BindActionIfValid(StartChargeAttackAction, ETriggerEvent::Started, &APlayerCharacter::StartChargeAttack);
+	BindActionIfValid(ChargeAttackAction, ETriggerEvent::Completed, &APlayerCharacter::ChargeAttack);
 	BindActionIfValid(SpecialAttackAction, ETriggerEvent::Started, &APlayerCharacter::SpecialAttack);
 	BindActionIfValid(GuardAction, ETriggerEvent::Started, &APlayerCharacter::Guard);
 	BindActionIfValid(BreakGuardAction, ETriggerEvent::Started, &APlayerCharacter::BreakGuard);
@@ -1004,18 +970,18 @@ void APlayerCharacter::LightAttack() {
 	//TakeDamages(0.02f);
 }
 
-void APlayerCharacter::ChargeHeavyAttack() {
+void APlayerCharacter::StartChargeAttack() {
 	if (!bIsCharging && !(GetCharacterMovement()->IsFalling()))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ChargeHeavyAttack\n"));
+		UE_LOG(LogTemp, Warning, TEXT("StartChargeAttack\n"));
 		bIsCharging = true;
-		GetWorld()->GetTimerManager().SetTimer(inputHeldTimer, this, &APlayerCharacter::HeavyAttack, maxInputHoldTime, false);
+		GetWorld()->GetTimerManager().SetTimer(inputHeldTimer, this, &APlayerCharacter::ChargeAttack, maxInputHoldTime, false);
 		UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));		
 	}
 }
 
-void APlayerCharacter::HeavyAttack() {
-	UE_LOG(LogTemp, Warning, TEXT("HeavyAttack\n"));
+void APlayerCharacter::ChargeAttack() {
+	UE_LOG(LogTemp, Warning, TEXT("ChargeAttack\n"));
 	bAttackHasBeenUsed = true;
 	UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));
 	//TakeDamages(0.05f);

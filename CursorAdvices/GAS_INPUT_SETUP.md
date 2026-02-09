@@ -42,7 +42,7 @@ The implementation follows the Lyra project pattern, allowing you to:
 
 Example mappings:
 - `IA_LightAttack` → `InputTag.LightAttack`
-- `IA_HeavyAttack` → `InputTag.HeavyAttack`
+- `IA_ChargeAttack` → `InputTag.ChargeAttack`
 - `IA_Dash` → `InputTag.Dash`
 - `IA_Guard` → `InputTag.Guard`
 
@@ -116,7 +116,7 @@ When the player presses the key bound to `IA_LightAttack`, the ability with `Inp
 The following Input Tags are defined in `PurgatoriumLexGameplayTags`:
 
 - `InputTag.LightAttack`
-- `InputTag.HeavyAttack`
+- `InputTag.ChargeAttack`
 - `InputTag.SpecialAttack`
 - `InputTag.Guard`
 - `InputTag.Dash`

@@ -327,7 +327,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Movement_Mode_Walking);
 
 // PurgatoriumLex has:
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_LightAttack);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_HeavyAttack);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(InputTag_ChargeAttack);
 // ... only input tags
 ```
 
