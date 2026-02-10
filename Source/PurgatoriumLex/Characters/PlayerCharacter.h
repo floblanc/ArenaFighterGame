@@ -59,6 +59,23 @@ struct FAbilityInputMapping
 	FGameplayTag InputTag;
 };
 
+/** Single entry in the ability input buffer. Frame-based for deterministic rollback. */
+USTRUCT(BlueprintType)
+struct FBufferedAbilityInput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
+	FGameplayTag InputTag;
+
+	/** Frames left before this entry expires. Decremented each Tick. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
+	int32 FramesRemaining = 0;
+
+	FBufferedAbilityInput() = default;
+	FBufferedAbilityInput(const FGameplayTag& Tag, int32 Frames) : InputTag(Tag), FramesRemaining(Frames) {}
+};
+
 UCLASS()
 class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 {
@@ -104,10 +121,6 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* RunAction;
 
-	/** Dodge Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* DodgeAction;
-
 	/** Roll Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* RollAction;
@@ -128,12 +141,8 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
 	TSubclassOf<class UGameplayAbility> GA_Kick;
 
-	/** Start Charge Attack Input Action - pressed to begin charging */
+	/** Charge Attack Input Action - Pressed = start charging, Released = execute attack or cancel (if held less than MinChargeTime) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
-	class UInputAction* StartChargeAttackAction;
-
-	/** Charge Attack Input Action - released to execute the charged attack */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
 	class UInputAction* ChargeAttackAction;
 
 	/** SpecialAttack Input Action */
@@ -230,6 +239,12 @@ protected:
 	/** Handle ability input tag released - called by InputComponent when ability input is released */
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
 
+	/** Add an input to the ability buffer (when activation failed or was gated). Only bufferable tags are stored. */
+	void BufferAbilityInput(FGameplayTag InputTag);
+
+	/** True if this tag should be buffered when activation fails (e.g. LightAttack, Roll). */
+	bool IsInputTagBufferable(FGameplayTag InputTag) const;
+
 	/** Setup legacy input bindings (used when InputConfig is not set) TODO: Remove this once the GAS implementation is complete */
 	void SetupLegacyInputBindings(UEnhancedInputComponent* EnhancedInputComponent);
 
@@ -321,10 +336,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Hitboxs")
 	bool bIsRigthPunchHitboxActive;
 
-	//The timer handle used to track how long "Smash Attacks" were held.
+	/** Timer: auto-release charged attack after max hold time */
 	FTimerHandle inputHeldTimer;
 
+	/** Max time the charge input can be held before auto-releasing the attack */
 	float maxInputHoldTime;
+
+	/** Time when charge started (for cancel vs commit on release) */
+	float ChargeAttackStartTime;
+
+	/** Minimum hold time to commit attack; release before this = cancel charge */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Actions", Meta = (ClampMin = "0.0"))
+	float MinChargeTime;
+
+	/** Input buffer: how many frames a failed ability input is kept before expiring (frame-based for rollback). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Buffer", Meta = (ClampMin = "1"))
+	int32 AbilityInputBufferFrames = 6;
+
+	/** Input tags that are buffered when activation fails (e.g. LightAttack, Roll). Add tags here to enable buffering. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Buffer", Meta = (Categories = "InputTag"))
+	TArray<FGameplayTag> BufferableInputTags;
+
+	/** Pending ability inputs to try activating each Tick until they expire or succeed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Input Buffer")
+	TArray<FBufferedAbilityInput> AbilityInputBuffer;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	EPosture ActualPosture;

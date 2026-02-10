@@ -40,8 +40,16 @@ public:
 	 * Processes ability input. Should be called deterministically when input events occur,
 	 * NOT from Tick for rollback netcode compatibility.
 	 * It activates abilities that have their input pressed and handles input release.
+	 * @return true if at least one ability was activated this frame
 	 */
-	void ProcessAbilityInput(float DeltaTime, bool bGamePaused);
+	bool ProcessAbilityInput(float DeltaTime, bool bGamePaused);
+
+	/**
+	 * Tries to activate any ability bound to the given input tag (used for input buffer consumption).
+	 * @return true if at least one ability was activated
+	 */
+	UFUNCTION(BlueprintCallable, Category = "PurgatoriumLex|Ability")
+	bool TryActivateAbilitiesByInputTag(const FGameplayTag& InputTag);
 
 	/**
 	 * Clears all pending ability input.

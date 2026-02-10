@@ -9,7 +9,7 @@ namespace PurgatoriumLexGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_ChargeAttack, "InputTag.ChargeAttack", "Charge Attack input tag for abilities.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_SpecialAttack, "InputTag.SpecialAttack", "Special Attack input tag for abilities.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Guard, "InputTag.Guard", "Guard input tag for abilities.");
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Dodge, "InputTag.Dodge", "Dodge input tag for abilities.");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Parry, "InputTag.Parry", "Parry input tag for abilities (triggered on Guard release).");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Roll, "InputTag.Roll", "Roll input tag for abilities.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Jump, "InputTag.Jump", "Jump input tag for abilities.");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(InputTag_Move, "InputTag.Move", "Move input tag.");

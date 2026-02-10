@@ -98,7 +98,7 @@ void UPurgatoriumLexAbilitySystemComponent::AbilityInputTagReleased(const FGamep
 	}
 }
 
-void UPurgatoriumLexAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
+bool UPurgatoriumLexAbilitySystemComponent::ProcessAbilityInput(float DeltaTime, bool bGamePaused)
 {
 	// Use local array instead of static for rollback netcode compatibility
 	// Static arrays can persist state across rollbacks, causing incorrect behavior
@@ -136,9 +136,13 @@ void UPurgatoriumLexAbilitySystemComponent::ProcessAbilityInput(float DeltaTime,
 	//
 	// Try to activate all the abilities that are from presses.
 	//
+	bool bAnyActivated = false;
 	for (const FGameplayAbilitySpecHandle& AbilitySpecHandle : AbilitiesToActivate)
 	{
-		TryActivateAbility(AbilitySpecHandle);
+		if (TryActivateAbility(AbilitySpecHandle))
+		{
+			bAnyActivated = true;
+		}
 	}
 
 	//
@@ -164,6 +168,35 @@ void UPurgatoriumLexAbilitySystemComponent::ProcessAbilityInput(float DeltaTime,
 	// Clear the input arrays for next frame
 	InputPressedSpecHandles.Reset();
 	InputReleasedSpecHandles.Reset();
+
+	return bAnyActivated;
+}
+
+bool UPurgatoriumLexAbilitySystemComponent::TryActivateAbilitiesByInputTag(const FGameplayTag& InputTag)
+{
+	if (!InputTag.IsValid()) return false;
+
+	TArray<FGameplayAbilitySpecHandle> HandlesToTry;
+	if (const TArray<FGameplayAbilitySpecHandle>* Handles = InputTagToSpecHandles.Find(InputTag))
+	{
+		HandlesToTry = *Handles;
+	}
+	for (const FGameplayAbilitySpec& AbilitySpec : ActivatableAbilities.Items)
+	{
+		if (AbilitySpec.Ability && AbilitySpec.GetDynamicSpecSourceTags().HasTagExact(InputTag))
+		{
+			HandlesToTry.AddUnique(AbilitySpec.Handle);
+		}
+	}
+
+	for (const FGameplayAbilitySpecHandle& Handle : HandlesToTry)
+	{
+		if (TryActivateAbility(Handle))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void UPurgatoriumLexAbilitySystemComponent::ClearAbilityInput()

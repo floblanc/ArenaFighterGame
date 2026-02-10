@@ -67,6 +67,8 @@ APlayerCharacter::APlayerCharacter()
 	bIsInAttackAnimation = false;
 	bIsCharging = false;
 	maxInputHoldTime = 3.5f;
+	ChargeAttackStartTime = 0.f;
+	MinChargeTime = 0.2f;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -168,6 +170,14 @@ void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Default bufferable tags if none set in Blueprint (LightAttack, Roll)
+	using namespace PurgatoriumLexGameplayTags;
+	if (BufferableInputTags.Num() == 0)
+	{
+		BufferableInputTags.Add(InputTag_LightAttack);
+		BufferableInputTags.Add(InputTag_Roll);
+	}
+
 	// ========== TEMPORARY: Team assignation. Remove when teams come from lobby/champ select. ==========
 	if (APlayerState* PS = GetPlayerState())
 	{
@@ -185,9 +195,25 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	//Perform the BluePrint Tick logic
-	//BPTick(DeltaTime);
-	
+	// Input buffer: frame-based consumption (deterministic for rollback)
+	for (FBufferedAbilityInput& Entry : AbilityInputBuffer)
+	{
+		Entry.FramesRemaining--;
+	}
+	AbilityInputBuffer.RemoveAll([](const FBufferedAbilityInput& E) { return E.FramesRemaining <= 0; });
+	UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent());
+	if (ASC)
+	{
+		for (int32 i = AbilityInputBuffer.Num() - 1; i >= 0; --i)
+		{
+			const FBufferedAbilityInput& Entry = AbilityInputBuffer[i];
+			if (CanActivateAbilityForInputTag(Entry.InputTag) && ASC->TryActivateAbilitiesByInputTag(Entry.InputTag))
+			{
+				AbilityInputBuffer.RemoveAt(i);
+			}
+		}
+	}
+
 	// Update camera lock-on deterministically
 	// This is called from Tick() but is still deterministic for rollback netcode because:
 	// - It only uses actor positions and rotations (part of rollback state)
@@ -278,9 +304,8 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 void APlayerCharacter::Move(const FInputActionValue& Value)
 {
-	UE_LOG(LogTemp, Warning, TEXT("[Input] Move() received - if you see this when pressing WASD, your Input Mapping Context has key mappings"));
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Move"));
 	bIsMoving = ((!(bIsInAttackAnimation)) || GetCharacterMovement()->IsFalling()) && !bIsCharging;
-	UE_LOG(LogTemp, Warning, TEXT("bIsMoving : %d (DETAILS : bIsInAttackAnimation = %d and GetCharacterMovement()->IsFalling() = %d)"), bIsMoving, bIsInAttackAnimation, GetCharacterMovement()->IsFalling());
 
 	// Change Posture by default movement
 	if (bIsCameraLockedOnCharacterBack && bIsMoving && (bIsPostureActionActive == false))
@@ -470,6 +495,7 @@ void APlayerCharacter::DoMoveAroundSomethingUE5Assistant(float Right, float Forw
 
 void APlayerCharacter::Look(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Look"));
 	// input is a Vector2D
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
@@ -509,6 +535,7 @@ void APlayerCharacter::DoLook(float Yaw, float Pitch)
 
 void APlayerCharacter::DoJumpStart()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Jump"));
 	// signal the character to jump
 	if (!bAttackHasBeenUsed && !bIsInAttackAnimation)
 	{
@@ -518,6 +545,7 @@ void APlayerCharacter::DoJumpStart()
 
 void APlayerCharacter::DoJumpEnd()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Native): Jump"));
 	// signal the character to stop jumping
 	StopJumping();
 }
@@ -537,6 +565,7 @@ void APlayerCharacter::LockCameraOnCharacterBack()
 
 void APlayerCharacter::StartRunning()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Run"));
 	UnlockCharacterBackFromCamera();
 
 	// Check if character is already running
@@ -558,11 +587,13 @@ void APlayerCharacter::StopRunning()
 
 void APlayerCharacter::Roll()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Roll"));
 	// TODO: implement roll or bind to ability
 }
 
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Posture"));
 	if (bIsCameraLockedOnCharacterBack)
 	{
 		bIsPostureActionActive = true;
@@ -688,6 +719,7 @@ void APlayerCharacter::SetPostureToNeutral()
 
 void APlayerCharacter::MoveActionStopped()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Native): Move"));
 	bIsMoving = false;
 	StopRunning(); // Stop running when stop moving
 	if (bIsPostureActionActive == false)
@@ -698,6 +730,7 @@ void APlayerCharacter::MoveActionStopped()
 
 void APlayerCharacter::PostureActionStopped()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Native): Posture"));
 	bIsPostureActionActive = false;
 	if (bIsMoving == false)
 	{
@@ -827,7 +860,7 @@ void APlayerCharacter::UpdateCameraLockOn()
 
 void APlayerCharacter::LockUnlockCameraOnEnemy()
 {
-	UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function Entered"));
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): LockUnlock"));
 	if (bIsCameraLockedOnEnemy)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function unlocking camera from enemy"));
@@ -880,7 +913,6 @@ bool APlayerCharacter::CanActivateAbilityForInputTag_Implementation(FGameplayTag
 	using namespace PurgatoriumLexGameplayTags;
 
 	if (InputTag == InputTag_LightAttack)   return CanPerformLightAttack();
-	// if (InputTag == InputTag_HeavyAttack) return CanPerformHeavyAttack();
 	// if (InputTag == InputTag_SpecialAttack) return CanPerformSpecialAttack();
 
 	return true; // no gate for other tags
@@ -897,21 +929,53 @@ bool APlayerCharacter::CanPerformLightAttack_Implementation() const
 
 void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
-	if (!CanActivateAbilityForInputTag(InputTag)) return;
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Ability): %s"), *InputTag.ToString());
 
-	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+	if (!CanActivateAbilityForInputTag(InputTag))
+	{
+		if (IsInputTagBufferable(InputTag))
+		{
+			BufferAbilityInput(InputTag);
+		}
+		return;
+	}
+
+	UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent());
+	if (ASC)
 	{
 		ASC->AbilityInputTagPressed(InputTag);
 		// Process input immediately for rollback netcode compatibility (frame-accurate input)
-		ASC->ProcessAbilityInput(0.0f, false);
+		const bool bActivated = ASC->ProcessAbilityInput(0.0f, false);
+		if (IsInputTagBufferable(InputTag) && !bActivated)
+		{
+			BufferAbilityInput(InputTag);
+		}
 	}
+}
+
+void APlayerCharacter::BufferAbilityInput(FGameplayTag InputTag)
+{
+	if (!IsInputTagBufferable(InputTag) || AbilityInputBufferFrames <= 0) return;
+	AbilityInputBuffer.RemoveAll([](const FBufferedAbilityInput& E) { return E.FramesRemaining <= 0; });
+	AbilityInputBuffer.Add(FBufferedAbilityInput(InputTag, AbilityInputBufferFrames));
+}
+
+bool APlayerCharacter::IsInputTagBufferable(FGameplayTag InputTag) const
+{
+	return InputTag.IsValid() && BufferableInputTags.Contains(InputTag);
 }
 
 void APlayerCharacter::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 {
+	using namespace PurgatoriumLexGameplayTags;
+
+	// Guard release is repurposed to drive Parry abilities via InputTag.Parry
+	const FGameplayTag DispatchTag = (InputTag == InputTag_Guard) ? InputTag_Parry : InputTag;
+
+	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Ability): %s (Dispatch: %s)"), *InputTag.ToString(), *DispatchTag.ToString());
 	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
 	{
-		ASC->AbilityInputTagReleased(InputTag);
+		ASC->AbilityInputTagReleased(DispatchTag);
 		// Process input immediately for rollback netcode compatibility (frame-accurate input)
 		ASC->ProcessAbilityInput(0.0f, false);
 	}
@@ -948,7 +1012,8 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 
 	// Combat
 	BindActionIfValid(LightAttackAction, ETriggerEvent::Started, &APlayerCharacter::LightAttack);
-	BindActionIfValid(StartChargeAttackAction, ETriggerEvent::Started, &APlayerCharacter::StartChargeAttack);
+	// Single IA: Started = start charge, Completed = release (attack or cancel if held < MinChargeTime)
+	BindActionIfValid(ChargeAttackAction, ETriggerEvent::Started, &APlayerCharacter::StartChargeAttack);
 	BindActionIfValid(ChargeAttackAction, ETriggerEvent::Completed, &APlayerCharacter::ChargeAttack);
 	BindActionIfValid(SpecialAttackAction, ETriggerEvent::Started, &APlayerCharacter::SpecialAttack);
 	BindActionIfValid(GuardAction, ETriggerEvent::Started, &APlayerCharacter::Guard);
@@ -959,8 +1024,7 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 }
 
 void APlayerCharacter::LightAttack() {
-	UE_LOG(LogTemp, Warning, TEXT("LightAttack\n"));
-	
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): LightAttack"));
 	// New-way note:
 	// Light attack should be triggered via InputConfig -> AbilityInputActions -> InputTag.LightAttack,
 	// which routes into Input_AbilityInputTagPressed/Released and the ASC.
@@ -971,25 +1035,44 @@ void APlayerCharacter::LightAttack() {
 }
 
 void APlayerCharacter::StartChargeAttack() {
-	if (!bIsCharging && !(GetCharacterMovement()->IsFalling()))
+	UE_LOG(LogTemp, Log, TEXT("[Input] ChargeAttack Pressed (start charge)"));
+	if (!bIsCharging && !GetCharacterMovement()->IsFalling())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("StartChargeAttack\n"));
 		bIsCharging = true;
+		ChargeAttackStartTime = GetWorld()->GetTimeSeconds();
 		GetWorld()->GetTimerManager().SetTimer(inputHeldTimer, this, &APlayerCharacter::ChargeAttack, maxInputHoldTime, false);
-		UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));		
 	}
 }
 
 void APlayerCharacter::ChargeAttack() {
-	UE_LOG(LogTemp, Warning, TEXT("ChargeAttack\n"));
+	// Clear timer so it never fires again (we were either released or auto-released at max hold)
+	GetWorld()->GetTimerManager().ClearTimer(inputHeldTimer);
+
+	if (!bIsCharging)
+	{
+		return;
+	}
+
+	const float Elapsed = GetWorld()->GetTimeSeconds() - ChargeAttackStartTime;
+	if (Elapsed < MinChargeTime)
+	{
+		// Early release: cancel charge, no attack
+		UE_LOG(LogTemp, Log, TEXT("[Input] ChargeAttack Released (cancel, held %.2fs < %.2fs)"), Elapsed, MinChargeTime);
+		bIsCharging = false;
+		return;
+	}
+
+	// Commit: execute charged attack
+	UE_LOG(LogTemp, Log, TEXT("[Input] ChargeAttack Released (attack, held %.2fs)"), Elapsed);
 	bAttackHasBeenUsed = true;
-	UE_LOG(LogTemp, Warning, TEXT("ATTACKING\n"));
-	//TakeDamages(0.05f);
+	bIsCharging = false;
+	// TakeDamages(0.05f); // placeholder for actual attack
 }
 
 
 void APlayerCharacter::SpecialAttack()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): SpecialAttack"));
 	if (bIsCharging)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SpecialAttack\n"));
@@ -1003,13 +1086,13 @@ void APlayerCharacter::SpecialAttack()
 
 void APlayerCharacter::Guard()
 {
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): Guard"));
 	bIsGuarding = true;
-	UE_LOG(LogTemp, Warning, TEXT("Guard\n"));
 }
 
 void APlayerCharacter::BreakGuard()
 {
-	UE_LOG(LogTemp, Warning, TEXT("BreakGuard\n"));
+	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): BreakGuard"));
 }
 
 
