@@ -1,5 +1,4 @@
 
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,6 +15,10 @@ class UInputAction;
 class UPurgatoriumLexInputComponent;
 struct FInputActionValue;
 struct FGameplayTag;
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 UENUM(BlueprintType)
 enum class EMovementState : uint8
@@ -44,7 +47,9 @@ enum class EPosture : uint8
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
-struct FGameplayTag;
+// ============================================================================
+// STRUCTS
+// ============================================================================
 
 /** Maps a Gameplay Ability to an Input Tag. Used to grant abilities and bind them to input in one place. */
 USTRUCT(BlueprintType)
@@ -83,11 +88,31 @@ struct FBufferedAbilityInput
 	}
 };
 
+// ============================================================================
+// CLASS DECLARATION
+// ============================================================================
+
 UCLASS()
 class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 {
 	GENERATED_BODY()
 
+public:
+	// ========================================================================
+	// CONSTRUCTOR & CORE OVERRIDES
+	// ========================================================================
+	
+	APlayerCharacter();
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_PlayerState() override;
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// ========================================================================
+	// COMPONENTS
+	// ========================================================================
+	
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
@@ -95,17 +120,87 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	UCameraComponent* FollowCamera;
+
+	/** Returns CameraBoom subobject **/
+	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+
+	/** Returns FollowCamera subobject **/
+	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	// ========================================================================
+	// PUBLIC FUNCTIONS - INPUT HANDLERS
+	// ========================================================================
 	
-	protected:
+	/** Handles move inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoMove(float Right, float Forward);
+	
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	void DoMoveAroundSomething(float Right, float Forward);
+	
+	/** Handles look inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoLook(float Yaw, float Pitch);
 
-	//////////////////////////////////////////////////////////
+	/** Handles jump pressed inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoJumpStart();
 
+	/** Handles jump released inputs from either controls or UI interfaces */
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	virtual void DoJumpEnd();
+
+	void Roll();
+
+	// ========================================================================
+	// PUBLIC FUNCTIONS - POSTURE
+	// ========================================================================
+	
+	/** Called for Posture Action */
+	void PostureActionTriggered(const FInputActionValue& Value);
+	void ProcessPostureInput(const FInputActionValue& Value);
+	void RequestNeutralPosture();
+	void PostureActionStopped();
+	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
+
+	// ========================================================================
+	// PUBLIC FUNCTIONS - STALING SYSTEMS
+	// ========================================================================
+	
+	/** Get duration multiplier based on current roll staling penalty (1.0 = fresh, increases with penalty). */
+	UFUNCTION(BlueprintPure, Category = "Roll Staling")
+	float GetRollDurationMultiplier() const { return 1.0f + RollStalePenalty; }
+
+	/** Get intangibility delay in frames for rolls (0 = fresh, 4 = fully stale). */
+	UFUNCTION(BlueprintPure, Category = "Roll Staling")
+	int32 GetRollIntangibilityDelay() const;
+
+	/** Get duration multiplier based on current posture staling penalty (1.0 = fresh, increases with penalty). */
+	UFUNCTION(BlueprintPure, Category = "Posture Staling")
+	float GetPostureDurationMultiplier() const { return 1.0f + PostureStalePenalty; }
+
+	/** Get intangibility delay in frames for posture changes (0 = fresh, 4 = fully stale). */
+	UFUNCTION(BlueprintPure, Category = "Posture Staling")
+	int32 GetPostureIntangibilityDelay() const;
+
+	// ========================================================================
+	// PUBLIC FUNCTIONS - BLUEPRINT EVENTS
+	// ========================================================================
+	
+	UFUNCTION(BlueprintImplementableEvent)
+	void BP_TryInitFloatingHealthBar();
+
+protected:
+	// ========================================================================
+	// ENHANCED INPUT SYSTEM
+	// ========================================================================
+	
 	/** Input Config - Maps InputActions to GameplayTags for ability binding */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enhanced Input")
 	TObjectPtr<const UPurgatoriumLexInputConfig> InputConfig;
 
 	/** MappingContext Default*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputMappingContext* DefaultMappingContext;
 
 	/** MappingContext Fighting*/
@@ -113,33 +208,57 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	class UInputMappingContext* FightingMappingContext;
 
 	/** Jump Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* JumpAction;
 
 	/** Move Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* MoveAction;
 
 	/** Look Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* LookAction;
 
 	/** Run Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* RunAction;
 
 	/** Roll Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* RollAction;
 
 	/** Posture Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* PostureAction;
 
 	/** LightAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
 	class UInputAction* LightAttackAction;
 
+	/** Charge Attack Input Action - Pressed = start charging, Released = execute attack or cancel (if held less than MinChargeTime) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputAction* ChargeAttackAction;
+
+	/** SpecialAttack Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputAction* SpecialAttackAction;
+
+	/** Guard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputAction* GuardAction;
+
+	/** BreakGuard Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputAction* BreakGuardAction;
+
+	/** Lock/Unlock Camera Input Action */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
+	class UInputAction* LockUnlockAction;
+
+	// ========================================================================
+	// ABILITY SYSTEM
+	// ========================================================================
+	
 	/** Abilities granted with their input tag. One entry per ability (e.g. GA_Kick -> InputTag.LightAttack). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Abilities", Meta = (TitleProperty = "AbilityClass"))
 	TArray<FAbilityInputMapping> AbilityInputMappings;
@@ -147,88 +266,6 @@ class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
 	/** GA Kick Ability Class - Legacy, kept for backward compatibility TODO: Remove this once the GAS implementation is complete */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Abilities")
 	TSubclassOf<class UGameplayAbility> GA_Kick;
-
-	/** Charge Attack Input Action - Pressed = start charging, Released = execute attack or cancel (if held less than MinChargeTime) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input")
-	class UInputAction* ChargeAttackAction;
-
-	/** SpecialAttack Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* SpecialAttackAction;
-
-	/** Guard Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* GuardAction;
-
-	/** BreakGuard Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* BreakGuardAction;
-
-	/** Lock/Unlock Camera Input Action */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	class UInputAction* LockUnlockAction;
-
-	///** Heal Camera Input Action */
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	//class UInputAction* HealAction;
-
-	///** TakeDamages Input Action */
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enhanced Input" )
-	//class UInputAction* TakeDamagesAction;
-	
-public:
-	// Sets default values for this character's properties
-	APlayerCharacter();
-	virtual void PossessedBy(AController* NewController) override;
-	virtual void OnRep_PlayerState() override;
-
-	UFUNCTION(BlueprintImplementableEvent)
-	void BP_TryInitFloatingHealthBar();
-
-private:
-	void InitAbilitySystemComponent();
-	void InitHUD() const;
-
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-	/** Called for movement input */
-	void Move(const FInputActionValue& Value);
-	void MoveActionStopped();
-
-	/** Called for looking input */
-	void Look(const FInputActionValue& Value);
-
-	void HandlePostureInputY(float Value);
-	void HandlePostureInputX(float Value);
-
-	void LightAttack();
-	void StartChargeAttack();
-	void ChargeAttack();
-	void SpecialAttack();
-
-	void Guard();
-	void BreakGuard();
-
-	void StartRunning();
-	
-	UFUNCTION(BlueprintCallable)
-	void StopRunning();
-
-	//void StartGuarding();
-	//void StopGuarding();
-
-	void LockUnlockCameraOnEnemy();
-
-	/** Update camera lock-on logic - called deterministically for rollback compatibility */
-	void UpdateCameraLockOn();
-
-	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
-	void RefreshLockOnCandidates();
-
-	/** Grants all abilities from AbilityInputMappings with their input tags. Called from PossessedBy. */
-	void GrantAbilitiesWithInputTags();
 
 	/** Single gate for all ability input: return false to block forwarding this tag to the ASC. */
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Abilities")
@@ -246,76 +283,41 @@ protected:
 	/** Handle ability input tag released - called by InputComponent when ability input is released */
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
 
+	/** Grants all abilities from AbilityInputMappings with their input tags. Called from PossessedBy. */
+	void GrantAbilitiesWithInputTags();
+
+	// ========================================================================
+	// INPUT BUFFERING SYSTEM
+	// ========================================================================
+	
+	/** Input buffer: how many frames a failed ability input is kept before expiring (frame-based for rollback). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Buffer", Meta = (ClampMin = "1"))
+	int32 AbilityInputBufferFrames = 6;
+
+	/** Input tags that are buffered when activation fails (e.g. LightAttack, Roll). Add tags here to enable buffering. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Buffer", Meta = (Categories = "InputTag"))
+	TArray<FGameplayTag> BufferableInputTags;
+
+	/** Pending ability inputs to try activating each Tick until they expire or succeed.
+	 *  CLIENT-SIDE ONLY: This is purely for feel improvement (responsive input when gates block activation).
+	 *  Not replicated - server only sees successful activations (handled by GAS replication).
+	 *  Rollback compatibility: When inputs are replayed, buffer is recreated deterministically. */
+	UPROPERTY(BlueprintReadOnly, Category = "Input Buffer")
+	TArray<FBufferedAbilityInput> AbilityInputBuffer;
+
+	/** Current simulation frame counter (increments each Tick). Used for buffer expiry calculation. */
+	int32 SimulationFrame = 0;
+
 	/** Add an input to the ability buffer (when activation failed or was gated). Only bufferable tags are stored. */
 	void BufferAbilityInput(FGameplayTag InputTag);
 
 	/** True if this tag should be buffered when activation fails (e.g. LightAttack, Roll). */
 	bool IsInputTagBufferable(FGameplayTag InputTag) const;
 
-	/** Setup legacy input bindings (used when InputConfig is not set) TODO: Remove this once the GAS implementation is complete */
-	void SetupLegacyInputBindings(UEnhancedInputComponent* EnhancedInputComponent);
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	/** Handles move inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoMove(float Right, float Forward);
+	// ========================================================================
+	// MOVEMENT & CHARACTER STATE
+	// ========================================================================
 	
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void DoMoveAroundSomething(float Right, float Forward);
-
-	/** Progressive movement around locked enemy - blends circling and forward/back movement proportionally */
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void DoMoveAroundSomethingProgressive(float Right, float Forward);
-
-	/** UE5 Assistant approach - direct tangent/radial movement with smooth rotation toward enemy */
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	void DoMoveAroundSomethingUE5Assistant(float Right, float Forward);
-	
-	/** Handles look inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoLook(float Yaw, float Pitch);
-
-	/** Handles jump pressed inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category="Input")
-	virtual void DoJumpStart();
-
-	/** Handles jump pressed inputs from either controls or UI interfaces */
-	UFUNCTION(BlueprintCallable, Category = "Input")
-	virtual void DoJumpEnd();
-
-	void Roll();
-
-	// Called for Posture Action
-	void PostureActionTriggered(const FInputActionValue& Value);
-	void ChangePosture(const FInputActionValue& Value);
-	void SetPostureToNeutral();
-	void PostureActionStopped();
-	void TryChangePostureByDefaultMovement(const FInputActionValue& Value);
-
-	void LockCameraOnCharacterBack();
-	
-	UFUNCTION(BlueprintCallable)
-	void UnlockCharacterBackFromCamera();
-
-	bool IsEnemy(int id);
-	bool IsEnemy(APlayerCharacter *fighter);
-
-	int  GetTeamId();
-	void SetTeamId(int teamId);
-
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int TeamId;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int PlayerNumber;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	float WalkingSpeed; // Default walk speed
 
@@ -323,11 +325,102 @@ public:
 	float RunningSpeed; // Default run speed
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
-	bool bIsMoving; //
+	bool bIsMoving;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	bool bIsRunning;
 
+	/** Called for movement input */
+	void Move(const FInputActionValue& Value);
+	void MoveActionStopped();
+
+	/** Called for looking input */
+	void Look(const FInputActionValue& Value);
+
+	void StartRunning();
+	
+	UFUNCTION(BlueprintCallable)
+	void StopRunning();
+
+	// ========================================================================
+	// POSTURE SYSTEM
+	// ========================================================================
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	EPosture ActualPosture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	bool bIsPostureActionActive;
+
+	/** Base delay in frames before posture change is applied (frame-based for rollback compatibility). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
+	int32 PostureBaseFramesDelay = 3;
+
+	/** Bonus delay in frames added to base delay (can be modified at runtime, e.g. from abilities/status effects). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
+	int32 PostureBonusFramesDelay = 0;
+
+	/** Pending posture change: target posture and frame when change was requested. */
+	EPosture PendingPosture = EPosture::E_Neutral;
+	int32 PostureChangeRequestFrame = -1;
+
+	void HandlePostureInputY(float Value);
+	void HandlePostureInputX(float Value);
+
+	// ========================================================================
+	// ROLL STALING SYSTEM
+	// ========================================================================
+	
+	/** Minimum penalty per roll (forward roll, ForwardVector = 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "0.0"))
+	float RollMinPenalty = 0.06f;
+
+	/** Maximum penalty per roll (back roll, ForwardVector = -1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "0.0"))
+	float RollMaxPenalty = 0.1f;
+
+	/** Maximum accumulated penalty (caps at this value). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "0.0"))
+	float RollMaxPenaltyValue = 0.5f;
+
+	/** Current accumulated roll staling penalty (0.0 = fresh, increases with each roll). */
+	UPROPERTY(BlueprintReadOnly, Category = "Roll Staling")
+	float RollStalePenalty = 0.0f;
+
+	/** Frame number when last dodge was performed (for deterministic reset calculation). */
+	int32 LastDodgeFrame = -1;
+
+	/** Number of frames without dodging before penalty resets (frame-based for rollback compatibility). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "1"))
+	int32 RollResetFrames = 60; // ~1 second at 60fps
+
+	// ========================================================================
+	// POSTURE STALING SYSTEM
+	// ========================================================================
+	
+	/** Constant penalty per posture change. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
+	float PosturePenalty = 0.08f;
+
+	/** Maximum accumulated penalty (caps at this value). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
+	float PostureMaxPenaltyValue = 0.5f;
+
+	/** Current accumulated posture staling penalty (0.0 = fresh, increases with each posture change). */
+	UPROPERTY(BlueprintReadOnly, Category = "Posture Staling")
+	float PostureStalePenalty = 0.0f;
+
+	/** Frame number when last posture change was performed (for deterministic reset calculation). */
+	int32 LastPostureChangeFrame = -1;
+
+	/** Number of frames without posture changes before penalty resets (frame-based for rollback compatibility). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "1"))
+	int32 PostureResetFrames = 60; // ~1 second at 60fps
+
+	// ========================================================================
+	// COMBAT & ACTIONS
+	// ========================================================================
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Actions")
 	bool bAttackHasBeenUsed;
 	
@@ -356,30 +449,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Actions", Meta = (ClampMin = "0.0"))
 	float MinChargeTime;
 
-	/** Input buffer: how many frames a failed ability input is kept before expiring (frame-based for rollback). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Buffer", Meta = (ClampMin = "1"))
-	int32 AbilityInputBufferFrames = 6;
+	void LightAttack();
+	void StartChargeAttack();
+	void ChargeAttack();
+	void SpecialAttack();
 
-	/** Input tags that are buffered when activation fails (e.g. LightAttack, Roll). Add tags here to enable buffering. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Buffer", Meta = (Categories = "InputTag"))
-	TArray<FGameplayTag> BufferableInputTags;
+	void Guard();
+	void BreakGuard();
 
-	/** Pending ability inputs to try activating each Tick until they expire or succeed.
-	 *  CLIENT-SIDE ONLY: This is purely for feel improvement (responsive input when gates block activation).
-	 *  Not replicated - server only sees successful activations (handled by GAS replication).
-	 *  Rollback compatibility: When inputs are replayed, buffer is recreated deterministically. */
-	UPROPERTY(BlueprintReadOnly, Category = "Input Buffer")
-	TArray<FBufferedAbilityInput> AbilityInputBuffer;
-
-	/** Current simulation frame counter (increments each Tick). Used for buffer expiry calculation. */
-	int32 SimulationFrame = 0;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
-	EPosture ActualPosture;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
-	bool bIsPostureActionActive;
-
+	// ========================================================================
+	// CAMERA & LOCK-ON SYSTEM
+	// ========================================================================
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
 	bool bIsCameraLockedOnEnemy;
 
@@ -403,18 +484,83 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "5", ClampMax = "90"))
 	float LockOnFOVDegrees = 45.f;
 
-	//the amount of health the player currently has
+	void LockUnlockCameraOnEnemy();
+
+	/** Update camera lock-on logic - called deterministically for rollback compatibility */
+	void UpdateCameraLockOn();
+
+	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
+	void RefreshLockOnCandidates();
+
+	// ========================================================================
+	// HEALTH & CHARACTER INFO
+	// ========================================================================
+	
+	/** The amount of health the player currently has */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float playerHealth;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
+	int TeamId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
+	int PlayerNumber;
+
+	// ========================================================================
+	// PROTECTED HELPER FUNCTIONS
+	// ========================================================================
+	
+	/** Setup legacy input bindings (used when InputConfig is not set) TODO: Remove this once the GAS implementation is complete */
+	void SetupLegacyInputBindings(UEnhancedInputComponent* EnhancedInputComponent);
+
+private:
+	// ========================================================================
+	// PRIVATE INITIALIZATION
+	// ========================================================================
+	
+	void InitAbilitySystemComponent();
+	void InitHUD() const;
+
+	// ========================================================================
+	// PRIVATE POSTURE HELPERS
+	// ========================================================================
+	
+	/** Request a posture change with frame delay. Returns true if change was queued, false if one is already pending. */
+	bool RequestPostureChange(EPosture TargetPosture);
+	
+	/** Process pending posture change in Tick - applies change when delay elapses. */
+	void ProcessPendingPostureChange();
+
+	// ========================================================================
+	// PRIVATE CAMERA HELPERS
+	// ========================================================================
+	
+	void LockCameraOnCharacterBack();
+	
+	UFUNCTION(BlueprintCallable)
+	void UnlockCharacterBackFromCamera();
+
+	// ========================================================================
+	// PRIVATE COMBAT HELPERS
+	// ========================================================================
+	
+	/** Calculate penalty increment based on roll direction (ForwardVector: 1 = forward, -1 = backward). */
+	float CalculateRollPenaltyIncrement(float ForwardVectorDot) const;
+
+	// ========================================================================
+	// PRIVATE UTILITY FUNCTIONS
+	// ========================================================================
+	
+	bool IsEnemy(int id);
+	bool IsEnemy(APlayerCharacter *fighter);
+
+	int  GetTeamId();
+	void SetTeamId(int teamId);
+
+	// ========================================================================
+	// PRIVATE MEMBER VARIABLES
+	// ========================================================================
+	
 	/** Handles for ability input bindings - used to clean up bindings */
 	TArray<uint32> AbilityInputBindHandles;
-
-public:
-
-	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
-
-	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 };

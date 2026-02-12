@@ -50,7 +50,7 @@ APlayerCharacter::APlayerCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	SetPostureToNeutral();
+	RequestNeutralPosture();
 	bIsCameraLockedOnCharacterBack = false;
 	bIsCameraLockedOnEnemy = false;
 	
@@ -70,6 +70,25 @@ APlayerCharacter::APlayerCharacter()
 	ChargeAttackStartTime = 0.f;
 	MinChargeTime = 0.2f;
 	SimulationFrame = 0;
+	PostureBaseFramesDelay = 3;
+	PostureBonusFramesDelay = 0;
+	PendingPosture = EPosture::E_Neutral;
+	PostureChangeRequestFrame = -1;
+	
+	// Roll staling defaults
+	RollMinPenalty = 0.06f;
+	RollMaxPenalty = 0.1f;
+	RollMaxPenaltyValue = 0.5f;
+	RollStalePenalty = 0.0f;
+	LastDodgeFrame = -1;
+	RollResetFrames = 60; // ~1 second at 60fps
+	
+	// Posture staling defaults
+	PosturePenalty = 0.08f;
+	PostureMaxPenaltyValue = 0.5f;
+	PostureStalePenalty = 0.0f;
+	LastPostureChangeFrame = -1;
+	PostureResetFrames = 60; // ~1 second at 60fps
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -198,6 +217,35 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 	// Input buffer: client-side feel improvement (not replicated)
 	SimulationFrame++;
+	
+	// Process delayed posture changes (frame-based for rollback compatibility)
+	ProcessPendingPostureChange();
+	
+	// Process roll staling reset (reset penalty after RollResetFrames without dodging - frame-based for rollback compatibility)
+	if (RollStalePenalty > 0.0f && LastDodgeFrame >= 0)
+	{
+		const int32 FramesSinceLastDodge = SimulationFrame - LastDodgeFrame;
+		
+		if (FramesSinceLastDodge >= RollResetFrames)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[Roll Staling] Penalty reset (%d frames since last dodge, frame %d)"), FramesSinceLastDodge, SimulationFrame);
+			RollStalePenalty = 0.0f;
+			LastDodgeFrame = -1;
+		}
+	}
+	
+	// Process posture staling reset (reset penalty after PostureResetFrames without posture changes - frame-based for rollback compatibility)
+	if (PostureStalePenalty > 0.0f && LastPostureChangeFrame >= 0)
+	{
+		const int32 FramesSinceLastPostureChange = SimulationFrame - LastPostureChangeFrame;
+		
+		if (FramesSinceLastPostureChange >= PostureResetFrames)
+		{
+			UE_LOG(LogTemp, Log, TEXT("[Posture Staling] Penalty reset (%d frames since last posture change, frame %d)"), FramesSinceLastPostureChange, SimulationFrame);
+			PostureStalePenalty = 0.0f;
+			LastPostureChangeFrame = -1;
+		}
+	}
 	
 	// Remove expired entries
 	int32 ExpiredCount = 0;
@@ -340,7 +388,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	// Change Posture by default movement
 	if (bIsCameraLockedOnCharacterBack && bIsMoving && (bIsPostureActionActive == false))
 	{
-		ChangePosture(Value);
+		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
 	}
 	
@@ -351,7 +399,6 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	{
 		if (bIsCameraLockedOnEnemy)
 		{
-			
 			// route the input
 			DoMoveAroundSomething(MovementVector.X, MovementVector.Y);
 		}
@@ -424,105 +471,6 @@ void APlayerCharacter::DoMoveAroundSomething(float Right, float Forward)
 
 }
 
-void APlayerCharacter::DoMoveAroundSomethingProgressive(float Right, float Forward)
-{
-	if (!lockedOnActor || !IsValid(lockedOnActor) || !Controller)
-	{
-		return;
-	}
-
-	// Get direction from character to locked enemy (horizontal plane only)
-	FVector ToEnemy = lockedOnActor->GetActorLocation() - GetActorLocation();
-	ToEnemy.Z = 0.0f; // Ignore height difference
-	const float DistanceToEnemy = ToEnemy.Size();
-
-	ToEnemy.Normalize();
-
-	// Calculate tangent vector (perpendicular to ToEnemy, for circling around)
-	// This is the direction for pure left/right movement (grey circle path)
-	FVector TangentVector = FVector::CrossProduct(ToEnemy, FVector::UpVector);
-	TangentVector.Normalize();
-
-	// Calculate input magnitude for movement speed
-	const float InputMagnitude = FMath::Sqrt(Right * Right + Forward * Forward);
-	
-	// Progressive blending based on input:
-	// - Pure left/right (Forward ≈ 0): Mostly tangent (circling)
-	// - Pure forward (Right ≈ 0): Mostly toward enemy
-	// - Pure back (Right ≈ 0, Forward < 0): Mostly away from enemy
-	// - Diagonal: Blend proportionally
-	
-	// Normalize inputs to get direction weights
-	// Forward component: how much toward/away from enemy
-	// Right component: how much circling around enemy
-	const float ForwardWeight = FMath::Abs(Forward) / FMath::Max(InputMagnitude, 0.001f);
-	const float RightWeight = FMath::Abs(Right) / FMath::Max(InputMagnitude, 0.001f);
-	
-	// Blend the two directions proportionally
-	// More forward = more toward enemy, more right = more circling
-	FVector MovementDirection;
-	
-	if (Forward >= 0.0f)
-	{
-		// Forward or diagonal forward: blend toward enemy + circling
-		MovementDirection = (ToEnemy * ForwardWeight) + (TangentVector * FMath::Sign(Right) * RightWeight);
-	}
-	else
-	{
-		// Backward or diagonal backward: blend away from enemy + circling
-		FVector AwayFromEnemy = -ToEnemy;
-		MovementDirection = (AwayFromEnemy * ForwardWeight) + (TangentVector * FMath::Sign(Right) * RightWeight);
-	}
-	
-	MovementDirection.Normalize();
-
-	// Apply movement with input magnitude (proportional to stick tilt)
-	AddMovementInput(MovementDirection, InputMagnitude);
-}
-
-void APlayerCharacter::DoMoveAroundSomethingUE5Assistant(float Right, float Forward)
-{
-	if (!lockedOnActor || !IsValid(lockedOnActor) || !Controller)
-	{
-		return;
-	}
-
-	FVector EnemyLoc = lockedOnActor->GetActorLocation();
-	FVector MyLoc = GetActorLocation();
-
-	// Radial direction: from enemy to player (outward)
-	FVector ToPlayer = MyLoc - EnemyLoc;
-	ToPlayer.Z = 0.0f;
-
-	if (ToPlayer.IsNearlyZero())
-	{
-		// Fallback to default movement to avoid issues
-		AddMovementInput(GetActorForwardVector(), Forward);
-		AddMovementInput(GetActorRightVector(), Right);
-		return;
-	}
-
-	// Radial direction (outward from enemy)
-	FVector RadialDir = ToPlayer.GetSafeNormal();
-
-	// Tangent direction (perpendicular, for orbiting)
-	FVector TangentDir = FVector::CrossProduct(FVector::UpVector, RadialDir);
-	TangentDir.Normalize();
-
-	// Orbit sideways with horizontal stick input (X = Right)
-	AddMovementInput(TangentDir, Right);
-
-	// Move in/out with vertical stick input (Y = Forward)
-	// Forward = positive = inward (toward enemy) - inverted for intuitive control
-	// Back = negative = outward (away from enemy)
-	AddMovementInput(-RadialDir, Forward);
-
-	// Face enemy smoothly
-	FRotator TargetRotation = UKismetMathLibrary::FindLookAtRotation(MyLoc, EnemyLoc);
-	FRotator NewRotation = FMath::RInterpTo(GetActorRotation(), TargetRotation, GetWorld()->GetDeltaSeconds(), 10.0f);
-	SetActorRotation(FRotator(0.0f, NewRotation.Yaw, 0.0f));
-}
-
 void APlayerCharacter::Look(const FInputActionValue& Value)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Look"));
@@ -584,7 +532,7 @@ void APlayerCharacter::UnlockCharacterBackFromCamera()
 {
 	bUseControllerRotationYaw = false;
 	bIsCameraLockedOnCharacterBack = false;
-	SetPostureToNeutral();
+	RequestNeutralPosture();
 }
 
 void APlayerCharacter::LockCameraOnCharacterBack()
@@ -618,7 +566,97 @@ void APlayerCharacter::StopRunning()
 void APlayerCharacter::Roll()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Roll"));
-	// TODO: implement roll or bind to ability
+	
+	// Calculate roll direction based on movement input or character facing
+	if (Controller != nullptr)
+	{
+		// Get movement input direction
+		FVector MovementInput = GetLastMovementInputVector();
+		if (MovementInput.SizeSquared() > 0.01f)
+		{
+			// Normalize and get forward component relative to character facing
+			MovementInput.Normalize();
+			FVector ForwardVector = GetActorForwardVector();
+			float ForwardDot = FVector::DotProduct(MovementInput, ForwardVector);
+			
+			// Clamp ForwardDot to [-1, 1] range
+			ForwardDot = FMath::Clamp(ForwardDot, -1.0f, 1.0f);
+			
+			// Calculate penalty increment based on direction
+			// ForwardDot: 1.0 = pure forward (min penalty), -1.0 = pure backward (max penalty)
+			float PenaltyIncrement = CalculateRollPenaltyIncrement(ForwardDot);
+			
+			// Accumulate penalty
+			RollStalePenalty = FMath::Min(RollStalePenalty + PenaltyIncrement, RollMaxPenaltyValue);
+			
+			// Update last dodge frame (frame-based for rollback compatibility)
+			LastDodgeFrame = SimulationFrame;
+			
+			UE_LOG(LogTemp, Log, TEXT("[Roll Staling] Roll executed - ForwardDot: %.2f, PenaltyIncrement: %.3f, TotalPenalty: %.3f, DurationMultiplier: %.3f, IntangibilityDelay: %d"), 
+				ForwardDot, PenaltyIncrement, RollStalePenalty, GetRollDurationMultiplier(), GetRollIntangibilityDelay());
+		}
+		else
+		{
+			// No movement input - assume neutral roll (use average penalty)
+			float AveragePenalty = (RollMinPenalty + RollMaxPenalty) * 0.5f;
+			RollStalePenalty = FMath::Min(RollStalePenalty + AveragePenalty, RollMaxPenaltyValue);
+			LastDodgeFrame = SimulationFrame;
+			
+			UE_LOG(LogTemp, Log, TEXT("[Roll Staling] Roll executed (no movement input) - AveragePenalty: %.3f, TotalPenalty: %.3f, DurationMultiplier: %.3f"), 
+				AveragePenalty, RollStalePenalty, GetRollDurationMultiplier());
+		}
+	}
+	
+	// TODO: implement roll movement/animation or bind to ability
+	// The staling system is ready - apply GetRollDurationMultiplier() to roll duration
+	// and GetRollIntangibilityDelay() to intangibility start frame
+}
+
+float APlayerCharacter::CalculateRollPenaltyIncrement(float ForwardVectorDot) const
+{
+	// ForwardVectorDot: 1.0 = pure forward (min penalty), -1.0 = pure backward (max penalty)
+	// Map from [1, -1] to [MinPenalty, MaxPenalty]
+	// Using linear interpolation: when ForwardDot = 1 -> MinPenalty, when ForwardDot = -1 -> MaxPenalty
+	
+	// Normalize ForwardDot from [1, -1] to [0, 1] where 0 = forward, 1 = backward
+	float NormalizedDot = (1.0f - ForwardVectorDot) * 0.5f;
+	
+	// Interpolate between MinPenalty and MaxPenalty
+	float PenaltyIncrement = FMath::Lerp(RollMinPenalty, RollMaxPenalty, NormalizedDot);
+	
+	return PenaltyIncrement;
+}
+
+int32 APlayerCharacter::GetRollIntangibilityDelay() const
+{
+	// When fully stale (penalty >= max), delay is 4 frames
+	// Linearly interpolate from 0 (fresh) to 4 (fully stale)
+	if (RollStalePenalty <= 0.0f)
+	{
+		return 0;
+	}
+	
+	// Calculate delay based on penalty ratio (0.0 to 1.0)
+	float PenaltyRatio = FMath::Clamp(RollStalePenalty / RollMaxPenaltyValue, 0.0f, 1.0f);
+	int32 Delay = FMath::RoundToInt(PenaltyRatio * 4.0f);
+	
+	return Delay;
+}
+
+int32 APlayerCharacter::GetPostureIntangibilityDelay() const
+{
+	// When fully stale (penalty >= max), delay is 4 frames
+	// Linearly interpolate from 0 (fresh) to 4 (fully stale)
+	if (PostureStalePenalty <= 0.0f)
+	{
+		return 0;
+	}
+	
+	// Calculate delay based on penalty ratio (0.0 to 1.0)
+	float PenaltyRatio = FMath::Clamp(PostureStalePenalty / PostureMaxPenaltyValue, 0.0f, 1.0f);
+	int32 Delay = FMath::RoundToInt(PenaltyRatio * 4.0f);
+	
+	return Delay;
 }
 
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
@@ -627,11 +665,11 @@ void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
 	if (bIsCameraLockedOnCharacterBack)
 	{
 		bIsPostureActionActive = true;
-		ChangePosture(Value);
+		ProcessPostureInput(Value);
 	}
 }
 
-void APlayerCharacter::ChangePosture(const FInputActionValue& Value)
+void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 {
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
@@ -708,43 +746,107 @@ void APlayerCharacter::ChangePosture(const FInputActionValue& Value)
 		// 		break;
 		// }
 		//////////////TRUC MOCHE POUR WINDOWS///////////////////
+		EPosture TargetPosture = EPosture::E_Neutral;
+		
 		if (finalAngle >= 296 && finalAngle <= 345)
 		{
-			ActualPosture = EPosture::E_DownRight;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownRight\n"));
+			TargetPosture = EPosture::E_DownRight;
 		}
 		else if (finalAngle >= 246 && finalAngle <= 295)
 		{
-			ActualPosture = EPosture::E_Down;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Down\n"));
+			TargetPosture = EPosture::E_Down;
 		}
 		else if (finalAngle >= 196 && finalAngle <= 245)
 		{
-			ActualPosture = EPosture::E_DownLeft;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownLeft\n"));
+			TargetPosture = EPosture::E_DownLeft;
 		}
 		else if (finalAngle >= 126 && finalAngle <= 195)
 		{
-			ActualPosture = EPosture::E_Left;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Left\n"));
+			TargetPosture = EPosture::E_Left;
 		}
 		else if (finalAngle >= 56 && finalAngle <= 125)
 		{
-			ActualPosture = EPosture::E_Up;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Up\n"));
+			TargetPosture = EPosture::E_Up;
 		}
 		else if ((finalAngle >= 346 && finalAngle <= 360) || (finalAngle >= 0 && finalAngle <= 55))
 		{
-			ActualPosture = EPosture::E_Right;
-			UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Right\n"));
+			TargetPosture = EPosture::E_Right;
 		}
+		
+		// Request posture change (will be queued with delay if none pending)
+		RequestPostureChange(TargetPosture);
 	}
 }
 
-void APlayerCharacter::SetPostureToNeutral()
+bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 {
-	ActualPosture = EPosture::E_Neutral;
-	UE_LOG(LogTemp, Warning, TEXT("---------\nNEUTRAL POSTURE\n---------\n"));
+	// Only change posture if no other posture change is pending
+	if (PostureChangeRequestFrame >= 0)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("[Posture] Change request ignored - posture change already pending"));
+		return false;
+	}
+
+	// Only change posture if TargetPosture is different than ActualPosture
+	if (TargetPosture == ActualPosture)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("[Posture] Change request ignored - TargetPosture is the same as ActualPosture"));
+		return false;
+	}
+
+	// Accumulate posture staling penalty (constant penalty per change)
+	PostureStalePenalty = FMath::Min(PostureStalePenalty + PosturePenalty, PostureMaxPenaltyValue);
+	LastPostureChangeFrame = SimulationFrame;
+	
+	UE_LOG(LogTemp, Log, TEXT("[Posture Staling] Posture change requested - Penalty: %.3f, TotalPenalty: %.3f, DurationMultiplier: %.3f, IntangibilityDelay: %d"), 
+		PosturePenalty, PostureStalePenalty, GetPostureDurationMultiplier(), GetPostureIntangibilityDelay());
+	
+	// Queue posture change with frame delay
+	const int32 TotalDelay = PostureBaseFramesDelay + PostureBonusFramesDelay;
+	if (TotalDelay > 0)
+	{
+		PendingPosture = TargetPosture;
+		PostureChangeRequestFrame = SimulationFrame;
+		UE_LOG(LogTemp, Log, TEXT("[Posture] Queued change to %d (will apply in %d frames at frame %d)"), 
+			(int32)TargetPosture, TotalDelay, SimulationFrame + TotalDelay);
+		return true;
+	}
+	else
+	{
+		// No delay: apply immediately
+		ActualPosture = TargetPosture;
+		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : %d\n"), (int32)ActualPosture);
+		return true;
+	}
+}
+
+void APlayerCharacter::ProcessPendingPostureChange()
+{
+	if (PostureChangeRequestFrame < 0)
+	{
+		return; // No pending change
+	}
+	
+	const int32 TotalDelay = PostureBaseFramesDelay + PostureBonusFramesDelay;
+	const int32 FramesElapsed = SimulationFrame - PostureChangeRequestFrame;
+	
+	if (FramesElapsed >= TotalDelay)
+	{
+		// Delay elapsed: apply the posture change
+		ActualPosture = PendingPosture;
+		UE_LOG(LogTemp, Log, TEXT("[Posture] Applied delayed change to %d (requested at frame %d, applied at frame %d, delay: %d frames)"), 
+			(int32)ActualPosture, PostureChangeRequestFrame, SimulationFrame, TotalDelay);
+		
+		// Clear pending change
+		PostureChangeRequestFrame = -1;
+		PendingPosture = EPosture::E_Neutral;
+	}
+}
+
+void APlayerCharacter::RequestNeutralPosture()
+{
+	// Use the same delay system as other posture changes (no bypass)
+	RequestPostureChange(EPosture::E_Neutral);
 }
 
 void APlayerCharacter::MoveActionStopped()
@@ -754,7 +856,7 @@ void APlayerCharacter::MoveActionStopped()
 	StopRunning(); // Stop running when stop moving
 	if (bIsPostureActionActive == false)
 	{
-		SetPostureToNeutral();
+		RequestNeutralPosture();
 	}
 }
 
@@ -764,7 +866,7 @@ void APlayerCharacter::PostureActionStopped()
 	bIsPostureActionActive = false;
 	if (bIsMoving == false)
 	{
-		SetPostureToNeutral();
+		RequestNeutralPosture();
 	}
 }
 
@@ -773,7 +875,7 @@ void APlayerCharacter::TryChangePostureByDefaultMovement(const FInputActionValue
 	// Change Posture by default movement
 	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
 	{
-		ChangePosture(Value);
+		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
 	}
 }
