@@ -59,7 +59,8 @@ struct FAbilityInputMapping
 	FGameplayTag InputTag;
 };
 
-/** Single entry in the ability input buffer. Frame-based for deterministic rollback. */
+/** Single entry in the ability input buffer. Frame-based for client-side feel improvement.
+ *  NOTE: Client-side only - not replicated. Server only sees successful activations (handled by GAS). */
 USTRUCT(BlueprintType)
 struct FBufferedAbilityInput
 {
@@ -68,12 +69,18 @@ struct FBufferedAbilityInput
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
 	FGameplayTag InputTag;
 
-	/** Frames left before this entry expires. Decremented each Tick. */
+	/** Frame number when this input was buffered (for deterministic expiry calculation). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
-	int32 FramesRemaining = 0;
+	int32 BufferedFrame = 0;
 
 	FBufferedAbilityInput() = default;
-	FBufferedAbilityInput(const FGameplayTag& Tag, int32 Frames) : InputTag(Tag), FramesRemaining(Frames) {}
+	FBufferedAbilityInput(const FGameplayTag& Tag, int32 Frame) : InputTag(Tag), BufferedFrame(Frame) {}
+
+	/** Calculate frames remaining based on current frame and buffer duration. */
+	int32 GetFramesRemaining(int32 CurrentFrame, int32 BufferFrames) const
+	{
+		return FMath::Max(0, BufferFrames - (CurrentFrame - BufferedFrame));
+	}
 };
 
 UCLASS()
@@ -357,9 +364,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input Buffer", Meta = (Categories = "InputTag"))
 	TArray<FGameplayTag> BufferableInputTags;
 
-	/** Pending ability inputs to try activating each Tick until they expire or succeed. */
+	/** Pending ability inputs to try activating each Tick until they expire or succeed.
+	 *  CLIENT-SIDE ONLY: This is purely for feel improvement (responsive input when gates block activation).
+	 *  Not replicated - server only sees successful activations (handled by GAS replication).
+	 *  Rollback compatibility: When inputs are replayed, buffer is recreated deterministically. */
 	UPROPERTY(BlueprintReadOnly, Category = "Input Buffer")
 	TArray<FBufferedAbilityInput> AbilityInputBuffer;
+
+	/** Current simulation frame counter (increments each Tick). Used for buffer expiry calculation. */
+	int32 SimulationFrame = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	EPosture ActualPosture;

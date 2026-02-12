@@ -69,6 +69,7 @@ APlayerCharacter::APlayerCharacter()
 	maxInputHoldTime = 3.5f;
 	ChargeAttackStartTime = 0.f;
 	MinChargeTime = 0.2f;
+	SimulationFrame = 0;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -195,21 +196,50 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Input buffer: frame-based consumption (deterministic for rollback)
-	for (FBufferedAbilityInput& Entry : AbilityInputBuffer)
-	{
-		Entry.FramesRemaining--;
-	}
-	AbilityInputBuffer.RemoveAll([](const FBufferedAbilityInput& E) { return E.FramesRemaining <= 0; });
+	// Input buffer: client-side feel improvement (not replicated)
+	SimulationFrame++;
+	
+	// Remove expired entries
+	int32 ExpiredCount = 0;
+	AbilityInputBuffer.RemoveAll([this, &ExpiredCount](const FBufferedAbilityInput& E) {
+		const int32 Remaining = E.GetFramesRemaining(SimulationFrame, AbilityInputBufferFrames);
+		const bool bExpired = Remaining <= 0;
+		if (bExpired)
+		{
+			ExpiredCount++;
+			UE_LOG(LogTemp, Log, TEXT("[Input Buffer] Entry expired: %s (was buffered at frame %d, current frame %d)"), 
+				*E.InputTag.ToString(), E.BufferedFrame, SimulationFrame);
+		}
+		return bExpired;
+	});
+	
+	// Try to consume buffer entries (retry failed activations)
 	UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent());
-	if (ASC)
+	if (ASC && AbilityInputBuffer.Num() > 0)
 	{
 		for (int32 i = AbilityInputBuffer.Num() - 1; i >= 0; --i)
 		{
 			const FBufferedAbilityInput& Entry = AbilityInputBuffer[i];
-			if (CanActivateAbilityForInputTag(Entry.InputTag) && ASC->TryActivateAbilitiesByInputTag(Entry.InputTag))
+			const int32 Remaining = Entry.GetFramesRemaining(SimulationFrame, AbilityInputBufferFrames);
+			
+			if (CanActivateAbilityForInputTag(Entry.InputTag))
 			{
-				AbilityInputBuffer.RemoveAt(i);
+				if (ASC->TryActivateAbilitiesByInputTag(Entry.InputTag))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[Input Buffer] ✅ CONSUMED: %s activated from buffer (was buffered at frame %d, consumed at frame %d, %d frames remaining)"), 
+						*Entry.InputTag.ToString(), Entry.BufferedFrame, SimulationFrame, Remaining);
+					AbilityInputBuffer.RemoveAt(i);  // Success: remove from buffer
+				}
+				else
+				{
+					UE_LOG(LogTemp, VeryVerbose, TEXT("[Input Buffer] Retrying %s: gate passed but ASC didn't activate (frame %d, %d frames remaining)"), 
+						*Entry.InputTag.ToString(), SimulationFrame, Remaining);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, VeryVerbose, TEXT("[Input Buffer] Retrying %s: gate still blocked (frame %d, %d frames remaining)"), 
+					*Entry.InputTag.ToString(), SimulationFrame, Remaining);
 			}
 		}
 	}
@@ -935,6 +965,7 @@ void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	{
 		if (IsInputTagBufferable(InputTag))
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[Input Buffer] Gate blocked %s - buffering for %d frames"), *InputTag.ToString(), AbilityInputBufferFrames);
 			BufferAbilityInput(InputTag);
 		}
 		return;
@@ -948,6 +979,7 @@ void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		const bool bActivated = ASC->ProcessAbilityInput(0.0f, false);
 		if (IsInputTagBufferable(InputTag) && !bActivated)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("[Input Buffer] ASC didn't activate %s - buffering for %d frames"), *InputTag.ToString(), AbilityInputBufferFrames);
 			BufferAbilityInput(InputTag);
 		}
 	}
@@ -956,8 +988,27 @@ void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 void APlayerCharacter::BufferAbilityInput(FGameplayTag InputTag)
 {
 	if (!IsInputTagBufferable(InputTag) || AbilityInputBufferFrames <= 0) return;
-	AbilityInputBuffer.RemoveAll([](const FBufferedAbilityInput& E) { return E.FramesRemaining <= 0; });
-	AbilityInputBuffer.Add(FBufferedAbilityInput(InputTag, AbilityInputBufferFrames));
+	
+	// Remove expired entries first
+	int32 ExpiredCount = 0;
+	AbilityInputBuffer.RemoveAll([this, &ExpiredCount](const FBufferedAbilityInput& E) {
+		const bool bExpired = E.GetFramesRemaining(SimulationFrame, AbilityInputBufferFrames) <= 0;
+		if (bExpired)
+		{
+			ExpiredCount++;
+		}
+		return bExpired;
+	});
+	if (ExpiredCount > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[Input Buffer] Removed %d expired entries (Frame %d)"), ExpiredCount, SimulationFrame);
+	}
+	
+	// Add new entry with current frame number (client-side only - feel improvement)
+	const int32 FramesRemaining = AbilityInputBufferFrames;
+	AbilityInputBuffer.Add(FBufferedAbilityInput(InputTag, SimulationFrame));
+	UE_LOG(LogTemp, Warning, TEXT("[Input Buffer] Buffered %s at frame %d (expires in %d frames, buffer size: %d)"), 
+		*InputTag.ToString(), SimulationFrame, FramesRemaining, AbilityInputBuffer.Num());
 }
 
 bool APlayerCharacter::IsInputTagBufferable(FGameplayTag InputTag) const
