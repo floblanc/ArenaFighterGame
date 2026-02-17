@@ -50,7 +50,9 @@ APlayerCharacter::APlayerCharacter()
 	WalkingSpeed = 400.f;
 	RunningSpeed = 800.f;
 
-	RequestNeutralPosture();
+	// Posture defaults (avoid calling RequestNeutralPosture() here because it relies on initialized state)
+	ActualPosture = EPosture::E_Neutral;
+	bIsPostureActionActive = false;
 	bIsCameraLockedOnCharacterBack = false;
 	bIsCameraLockedOnEnemy = false;
 	
@@ -89,6 +91,17 @@ APlayerCharacter::APlayerCharacter()
 	PostureStalePenalty = 0.0f;
 	LastPostureChangeFrame = -1;
 	PostureResetFrames = 60; // ~1 second at 60fps
+
+	// Tech system defaults (SSBU-style)
+	TechWindowFrames = 11;
+	TechLockoutFrames = 40;
+	TechKnockbackThreshold = 6.0f;
+	TechWindowStartFrame = -1;
+	LastTechInputFrame = -1;
+	bIsTechInputHeld = false;
+	bIsJumpInputHeld = false;
+	bIsTechable = false;
+	LastWallHitNormal = FVector::ZeroVector;
 
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -171,6 +184,17 @@ void APlayerCharacter::InitAbilitySystemComponent()
 	AbilitySystemComponent = CastChecked<UPurgatoriumLexAbilitySystemComponent>(PurgatoriumLexPlayerState->GetAbilitySystemComponent());
 	AbilitySystemComponent->InitAbilityActorInfo(PurgatoriumLexPlayerState, this);
 	AttributeSet = PurgatoriumLexPlayerState->GetAttributeSet();
+
+	// Ensure PostureChanging tag matches pending posture state
+	using namespace PurgatoriumLexGameplayTags;
+	if (PostureChangeRequestFrame >= 0)
+	{
+		AbilitySystemComponent->AddLooseGameplayTag(State_PostureChanging);
+	}
+	else
+	{
+		AbilitySystemComponent->RemoveLooseGameplayTag(State_PostureChanging);
+	}
 }
 
 void APlayerCharacter::InitHUD() const
@@ -298,6 +322,24 @@ void APlayerCharacter::Tick(float DeltaTime)
 	// - All calculations are pure functions of rollback state
 	// - As long as inputs (actor positions) are deterministic, output (camera rotation) is deterministic
 	UpdateCameraLockOn();
+
+	// Update techable state (check if character should be able to tech)
+	UpdateTechableState();
+
+	// Process tech window expiration (frame-based for rollback compatibility)
+	if (TechWindowStartFrame >= 0)
+	{
+		const int32 FramesElapsed = SimulationFrame - TechWindowStartFrame;
+		if (FramesElapsed >= TechWindowFrames)
+		{
+			// Tech window expired without tech being performed
+			EndTechWindow();
+		}
+	}
+
+	// NOTE: Removed predictive tech window start (WillHitWallSoon) for rollback compatibility
+	// Predictive line traces can be non-deterministic between clients during rollback.
+	// Tech windows are now started only when actual contact occurs (Landed/NotifyHit callbacks).
 }
 
 // Called to bind functionality to input
@@ -513,6 +555,7 @@ void APlayerCharacter::DoLook(float Yaw, float Pitch)
 
 void APlayerCharacter::DoJumpStart()
 {
+	bIsJumpInputHeld = true;
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Jump"));
 	// signal the character to jump
 	if (!bAttackHasBeenUsed && !bIsInAttackAnimation)
@@ -523,6 +566,7 @@ void APlayerCharacter::DoJumpStart()
 
 void APlayerCharacter::DoJumpEnd()
 {
+	bIsJumpInputHeld = false;
 	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Native): Jump"));
 	// signal the character to stop jumping
 	StopJumping();
@@ -807,6 +851,11 @@ bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 	{
 		PendingPosture = TargetPosture;
 		PostureChangeRequestFrame = SimulationFrame;
+		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+		{
+			using namespace PurgatoriumLexGameplayTags;
+			ASC->AddLooseGameplayTag(State_PostureChanging);
+		}
 		UE_LOG(LogTemp, Log, TEXT("[Posture] Queued change to %d (will apply in %d frames at frame %d)"), 
 			(int32)TargetPosture, TotalDelay, SimulationFrame + TotalDelay);
 		return true;
@@ -815,6 +864,11 @@ bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 	{
 		// No delay: apply immediately
 		ActualPosture = TargetPosture;
+		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+		{
+			using namespace PurgatoriumLexGameplayTags;
+			ASC->RemoveLooseGameplayTag(State_PostureChanging);
+		}
 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : %d\n"), (int32)ActualPosture);
 		return true;
 	}
@@ -834,6 +888,11 @@ void APlayerCharacter::ProcessPendingPostureChange()
 	{
 		// Delay elapsed: apply the posture change
 		ActualPosture = PendingPosture;
+		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+		{
+			using namespace PurgatoriumLexGameplayTags;
+			ASC->RemoveLooseGameplayTag(State_PostureChanging);
+		}
 		UE_LOG(LogTemp, Log, TEXT("[Posture] Applied delayed change to %d (requested at frame %d, applied at frame %d, delay: %d frames)"), 
 			(int32)ActualPosture, PostureChangeRequestFrame, SimulationFrame, TotalDelay);
 		
@@ -1170,6 +1229,7 @@ void APlayerCharacter::SetupLegacyInputBindings(UEnhancedInputComponent* Enhance
 	BindActionIfValid(ChargeAttackAction, ETriggerEvent::Completed, &APlayerCharacter::ChargeAttack);
 	BindActionIfValid(SpecialAttackAction, ETriggerEvent::Started, &APlayerCharacter::SpecialAttack);
 	BindActionIfValid(GuardAction, ETriggerEvent::Started, &APlayerCharacter::Guard);
+	BindActionIfValid(GuardAction, ETriggerEvent::Completed, &APlayerCharacter::GuardReleased);
 	BindActionIfValid(BreakGuardAction, ETriggerEvent::Started, &APlayerCharacter::BreakGuard);
 
 	// Camera Control
@@ -1240,12 +1300,455 @@ void APlayerCharacter::SpecialAttack()
 void APlayerCharacter::Guard()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): Guard"));
+	
+	// Check if character is in techable state - if so, handle tech input instead
+	if (bIsTechable || IsInTechWindow())
+	{
+		OnTechInputPressed();
+		return;
+	}
+
+	// Normal guard behavior
 	bIsGuarding = true;
+}
+
+void APlayerCharacter::GuardReleased()
+{
+	UE_LOG(LogTemp, Log, TEXT("[Input] Released (Legacy/Ability): Guard"));
+	
+	// Handle tech input release
+	OnTechInputReleased();
+	
+	// Normal guard release behavior
+	bIsGuarding = false;
 }
 
 void APlayerCharacter::BreakGuard()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Legacy/Ability): BreakGuard"));
+}
+
+// ========================================================================
+// TECH SYSTEM IMPLEMENTATION (SSBU-style)
+// ========================================================================
+
+bool APlayerCharacter::CanTech() const
+{
+	using namespace PurgatoriumLexGameplayTags;
+	
+	// Must be in techable state (tumbling/reeling)
+	if (!bIsTechable)
+	{
+		return false;
+	}
+
+	// Check if in lockout period
+	if (LastTechInputFrame >= 0)
+	{
+		const int32 FramesSinceLastInput = SimulationFrame - LastTechInputFrame;
+		if (FramesSinceLastInput < TechLockoutFrames)
+		{
+			return false;
+		}
+	}
+
+	// Check if already teching
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (ASC && ASC->HasMatchingGameplayTag(State_Tech))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool APlayerCharacter::IsInTechWindow() const
+{
+	return TechWindowStartFrame >= 0 && 
+		   (SimulationFrame - TechWindowStartFrame) < TechWindowFrames;
+}
+
+void APlayerCharacter::OnTechInputPressed()
+{
+	bIsTechInputHeld = true;
+	LastTechInputFrame = SimulationFrame;
+
+	// If in tech window, perform tech immediately
+	if (IsInTechWindow() && CanTech())
+	{
+		// Determine tech type based on input and contact
+		// Use movement input from character movement component (rollback-safe)
+		const FVector MovementInput = GetCharacterMovement()->GetLastInputVector();
+		const float InputForward = MovementInput.X; // X component is forward/backward in Unreal
+		const float InputRight = MovementInput.Y; // Y component is right/left in Unreal
+		const bool bIsWallContact = !LastWallHitNormal.IsZero();
+		const ETechType TechType = DetermineTechType(bIsWallContact, InputForward, InputRight);
+		
+		PerformTech(TechType);
+	}
+	// NOTE: Removed predictive tech window start for rollback compatibility
+	// Tech windows are started only when actual contact occurs (Landed/NotifyHit callbacks).
+	// This ensures deterministic behavior across all clients during rollback.
+}
+
+void APlayerCharacter::OnTechInputReleased()
+{
+	bIsTechInputHeld = false;
+}
+
+void APlayerCharacter::PerformTech(ETechType TechType)
+{
+	using namespace PurgatoriumLexGameplayTags;
+	
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC)
+	{
+		return;
+	}
+
+	// Add Tech state tag
+	ASC->AddLooseGameplayTag(State_Tech);
+
+	// Remove knockdown/airborne states
+	ASC->RemoveLooseGameplayTag(State_KnockedDown);
+	ASC->RemoveLooseGameplayTag(State_Airborne);
+	ASC->RemoveLooseGameplayTag(State_Hitstun);
+
+	// Remove wall splat/ground bounce if present
+	ASC->RemoveLooseGameplayTag(State_WallSplat);
+	ASC->RemoveLooseGameplayTag(State_GroundBounce);
+
+	// Reset techable state
+	bIsTechable = false;
+
+	// End tech window
+	EndTechWindow();
+
+	// Apply tech lockout
+	LastTechInputFrame = SimulationFrame;
+
+	// Handle tech type-specific behavior
+	switch (TechType)
+	{
+	case ETechType::E_Standard:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed STANDARD tech"));
+		// Standard tech: character bounces up and recovers standing
+		// Animation/movement handled by Blueprint or ability system
+		break;
+
+	case ETechType::E_RollForward:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed ROLL FORWARD tech"));
+		// Rolling tech forward: character rolls forward during recovery
+		// Movement handled by Blueprint or ability system
+		break;
+
+	case ETechType::E_RollBackward:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed ROLL BACKWARD tech"));
+		// Rolling tech backward: character rolls backward during recovery
+		// Movement handled by Blueprint or ability system
+		break;
+
+	case ETechType::E_RollLeft:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed ROLL LEFT tech"));
+		// Rolling tech left: character rolls left during recovery
+		// Movement handled by Blueprint or ability system
+		break;
+
+	case ETechType::E_RollRight:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed ROLL RIGHT tech"));
+		// Rolling tech right: character rolls right during recovery
+		// Movement handled by Blueprint or ability system
+		break;
+
+	case ETechType::E_Wall:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed WALL tech"));
+		// Wall tech: character bounces off wall and recovers
+		// Cancel momentum, apply recovery
+		GetCharacterMovement()->Velocity = FVector::ZeroVector;
+		break;
+
+	case ETechType::E_WallJump:
+		UE_LOG(LogTemp, Log, TEXT("[Tech] Performed WALL JUMP tech"));
+		// Wall tech jump: character wall jumps during tech
+		// Jump handled by Blueprint or ability system
+		// Note: In SSBU, wall tech jump can be performed by holding jump input during wall tech
+		break;
+	}
+
+	// Tech recovery completion will be handled by Blueprint/montage notify
+	// Remove State.Tech tag when tech animation completes
+}
+
+void APlayerCharacter::UpdateTechableState()
+{
+	using namespace PurgatoriumLexGameplayTags;
+	
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC)
+	{
+		bIsTechable = false;
+		return;
+	}
+
+	// Character is techable if:
+	// 1. In hitstun (tumbling/reeling state)
+	// 2. Not already teching
+	// 3. Not already on ground (for ground tech) OR airborne (for wall tech)
+	const bool bInHitstun = ASC->HasMatchingGameplayTag(State_Hitstun);
+	const bool bIsTeched = ASC->HasMatchingGameplayTag(State_Tech);
+	const bool bIsGrounded = GetCharacterMovement()->IsMovingOnGround();
+	const bool bIsFalling = GetCharacterMovement()->IsFalling();
+
+	bIsTechable = bInHitstun && !bIsTeched && (bIsFalling || bIsGrounded);
+
+	// NOTE: Removed predictive tech window start (WillHitGroundSoon) for rollback compatibility
+	// Predictive line traces can be non-deterministic between clients during rollback.
+	// Tech windows are now started only when actual contact occurs (Landed callback).
+}
+
+void APlayerCharacter::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+
+	using namespace PurgatoriumLexGameplayTags;
+	
+	// Start tech window on ground contact (rollback-safe: contact events are deterministic)
+	if (bIsTechable && !IsInTechWindow())
+	{
+		StartTechWindow();
+	}
+	
+	// Check if tech input was buffered or is currently held
+	if (bIsTechInputHeld || IsInTechWindow())
+	{
+		// Check if we can tech this landing
+		if (CanTech())
+		{
+			// Determine tech type based on input direction
+			// Use movement input from character movement component (rollback-safe)
+			const FVector MovementInput = GetCharacterMovement()->GetLastInputVector();
+			const float InputForward = MovementInput.X; // X component is forward/backward in Unreal
+			const float InputRight = MovementInput.Y; // Y component is right/left in Unreal
+			const ETechType TechType = DetermineTechType(false, InputForward, InputRight); // false = ground contact
+			
+			PerformTech(TechType);
+			return;
+		}
+	}
+
+	// Normal landing (no tech)
+	// Character enters knockdown state if in hitstun
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (ASC && ASC->HasMatchingGameplayTag(State_Hitstun))
+	{
+		ASC->AddLooseGameplayTag(State_KnockedDown);
+		ASC->AddLooseGameplayTag(State_GroundBounce);
+	}
+}
+
+void APlayerCharacter::NotifyHit(UPrimitiveComponent* MyComp, AActor* Other, UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
+{
+	Super::NotifyHit(MyComp, Other, OtherComp, bSelfMoved, HitLocation, HitNormal, NormalImpulse, Hit);
+
+	using namespace PurgatoriumLexGameplayTags;
+	
+	// Only process wall hits when airborne (not ground contact - that's handled by Landed())
+	if (!GetCharacterMovement()->IsFalling() && !GetCharacterMovement()->IsMovingOnGround())
+	{
+		return; // Not airborne, ignore
+	}
+
+	// Check if hit surface is roughly vertical (wall, not floor/ceiling)
+	const float WallDot = FMath::Abs(FVector::DotProduct(HitNormal, FVector::UpVector));
+	if (WallDot > 0.7f)
+	{
+		return; // Surface is more horizontal than vertical (floor/ceiling, not wall)
+	}
+
+	// This is a wall hit
+	LastWallHitNormal = HitNormal;
+
+	// Start tech window on wall contact (rollback-safe: contact events are deterministic)
+	if (bIsTechable && !IsInTechWindow())
+	{
+		StartTechWindow();
+	}
+
+	// Check if tech input was buffered or is currently held
+	if (bIsTechInputHeld || IsInTechWindow())
+	{
+		// Check if we can tech this wall hit
+		if (CanTech())
+		{
+			// Check knockback speed threshold (SSBU: untechable if speed >= 6.0)
+			const float KnockbackSpeed = GetCharacterMovement()->Velocity.Size();
+			if (KnockbackSpeed >= TechKnockbackThreshold)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[Tech] Wall hit untechable: knockback speed %.2f >= threshold %.2f"), 
+					KnockbackSpeed, TechKnockbackThreshold);
+				// Enter wall splat state (untechable)
+				UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+				if (ASC)
+				{
+					ASC->AddLooseGameplayTag(State_WallSplat);
+				}
+				return;
+			}
+
+			// Determine tech type (wall tech or wall tech jump)
+			const ETechType TechType = bIsJumpInputHeld ? ETechType::E_WallJump : ETechType::E_Wall;
+			
+			PerformTech(TechType);
+			return;
+		}
+	}
+
+	// Normal wall hit (no tech)
+	// Character enters wall splat state if in hitstun
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (ASC && ASC->HasMatchingGameplayTag(State_Hitstun))
+	{
+		ASC->AddLooseGameplayTag(State_WallSplat);
+	}
+}
+
+void APlayerCharacter::StartTechWindow()
+{
+	if (IsInTechWindow())
+	{
+		return; // Already in tech window
+	}
+
+	TechWindowStartFrame = SimulationFrame;
+	UE_LOG(LogTemp, VeryVerbose, TEXT("[Tech] Tech window started at frame %d"), SimulationFrame);
+}
+
+void APlayerCharacter::EndTechWindow()
+{
+	if (TechWindowStartFrame < 0)
+	{
+		return; // No active tech window
+	}
+
+	TechWindowStartFrame = -1;
+	UE_LOG(LogTemp, VeryVerbose, TEXT("[Tech] Tech window ended at frame %d"), SimulationFrame);
+}
+
+bool APlayerCharacter::WillHitGroundSoon() const
+{
+	if (!GetCharacterMovement()->IsFalling())
+	{
+		return false;
+	}
+
+	// Perform a line trace downward to check if ground is close
+	const FVector StartLocation = GetActorLocation();
+	const FVector EndLocation = StartLocation + FVector(0.0f, 0.0f, -200.0f); // Check 200 units below
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		StartLocation,
+		EndLocation,
+		ECC_Pawn,
+		QueryParams
+	);
+
+	if (bHit)
+	{
+		// Estimate time to impact based on vertical velocity
+		const float VerticalVelocity = GetCharacterMovement()->Velocity.Z;
+		if (VerticalVelocity < 0.0f) // Falling
+		{
+			const float DistanceToGround = FMath::Abs(StartLocation.Z - HitResult.Location.Z);
+			const float TimeToImpact = DistanceToGround / FMath::Abs(VerticalVelocity);
+			// Consider "soon" as within ~0.2 seconds (12 frames at 60fps)
+			return TimeToImpact <= 0.2f;
+		}
+	}
+
+	return false;
+}
+
+bool APlayerCharacter::WillHitWallSoon() const
+{
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		return false; // Only check for walls when airborne
+	}
+
+	// Perform a line trace in movement direction to check if wall is close
+	const FVector Velocity = GetCharacterMovement()->Velocity;
+	if (Velocity.SizeSquared() < 100.0f) // Too slow to matter
+	{
+		return false;
+	}
+
+	const FVector StartLocation = GetActorLocation();
+	const FVector VelocityDirection = Velocity.GetSafeNormal();
+	const FVector EndLocation = StartLocation + VelocityDirection * 150.0f; // Check 150 units ahead
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		StartLocation,
+		EndLocation,
+		ECC_Pawn,
+		QueryParams
+	);
+
+	if (bHit)
+	{
+		// Check if hit surface is roughly vertical (wall, not floor/ceiling)
+		const float WallDot = FMath::Abs(FVector::DotProduct(HitResult.Normal, FVector::UpVector));
+		return WallDot < 0.7f; // Surface is more horizontal than vertical (wall-like)
+	}
+
+	return false;
+}
+
+ETechType APlayerCharacter::DetermineTechType(bool bIsWallContact, float InputForward, float InputRight) const
+{
+	if (bIsWallContact)
+	{
+		// Wall tech: check if jump input is held for wall tech jump
+		return bIsJumpInputHeld ? ETechType::E_WallJump : ETechType::E_Wall;
+	}
+	else
+	{
+		// Ground tech: check input direction for rolling tech
+		// Priority: forward/backward takes precedence over left/right
+		const float Threshold = 0.5f; // Deadzone threshold
+		
+		// Check forward/backward first
+		if (InputForward > Threshold)
+		{
+			return ETechType::E_RollForward;
+		}
+		else if (InputForward < -Threshold)
+		{
+			return ETechType::E_RollBackward;
+		}
+		// Then check left/right
+		else if (InputRight < -Threshold)
+		{
+			return ETechType::E_RollLeft;
+		}
+		else if (InputRight > Threshold)
+		{
+			return ETechType::E_RollRight;
+		}
+		else
+		{
+			return ETechType::E_Standard;
+		}
+	}
 }
 
 

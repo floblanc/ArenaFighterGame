@@ -45,6 +45,18 @@ enum class EPosture : uint8
     E_DownRight	UMETA(DisplayName = "DOWNRIGHT"),
 };
 
+UENUM(BlueprintType)
+enum class ETechType : uint8
+{
+    E_Standard	UMETA(DisplayName = "STANDARD"),
+    E_RollForward	UMETA(DisplayName = "ROLL FORWARD"),
+    E_RollBackward	UMETA(DisplayName = "ROLL BACKWARD"),
+    E_RollLeft	UMETA(DisplayName = "ROLL LEFT"),
+    E_RollRight	UMETA(DisplayName = "ROLL RIGHT"),
+    E_Wall		UMETA(DisplayName = "WALL"),
+    E_WallJump	UMETA(DisplayName = "WALL JUMP"),
+};
+
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
 
 // ============================================================================
@@ -455,7 +467,75 @@ protected:
 	void SpecialAttack();
 
 	void Guard();
+	void GuardReleased();
 	void BreakGuard();
+
+	// ========================================================================
+	// TECH SYSTEM (SSBU-style)
+	// ========================================================================
+	
+	/** Tech window duration in frames (SSBU: 11 frames). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tech System", Meta = (ClampMin = "1"))
+	int32 TechWindowFrames = 11;
+
+	/** Tech lockout duration in frames after inputting a tech (SSBU: 40 frames). Prevents mashing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tech System", Meta = (ClampMin = "1"))
+	int32 TechLockoutFrames = 40;
+
+	/** Minimum knockback speed threshold for untechable hits (SSBU: 6.0). Higher = easier to tech. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tech System", Meta = (ClampMin = "0.0"))
+	float TechKnockbackThreshold = 6.0f;
+
+	/** Frame when tech window started (frame-based for rollback compatibility). -1 = no active window.
+	 *  NOTE: This is client-side prediction state. During rollback, this will be recalculated deterministically
+	 *  based on contact events (Landed/NotifyHit) and input state. */
+	int32 TechWindowStartFrame = -1;
+
+	/** Frame when last tech input was pressed (for lockout calculation). -1 = no lockout.
+	 *  NOTE: Frame-based for rollback compatibility. Lockout is recalculated deterministically during rollback. */
+	int32 LastTechInputFrame = -1;
+
+	/** Whether shield/guard button is currently held (for ground tech hold input).
+	 *  NOTE: This is prediction state. During rollback, input state is replayed deterministically. */
+	bool bIsTechInputHeld = false;
+
+	/** Whether jump input is currently held (for wall tech jump detection).
+	 *  NOTE: This is prediction state. During rollback, input state is replayed deterministically. */
+	bool bIsJumpInputHeld = false;
+
+	/** Whether character is in a techable state (tumbling/reeling with hitstun).
+	 *  NOTE: Derived from GameplayTags state (State.Hitstun, State.Tech) which are part of rollback state. */
+	bool bIsTechable = false;
+
+	/** Last detected wall hit normal (for wall tech direction).
+	 *  NOTE: Set deterministically from NotifyHit callback during contact. */
+	FVector LastWallHitNormal = FVector::ZeroVector;
+
+	/** Check if character can tech (in techable state and not in lockout). */
+	UFUNCTION(BlueprintPure, Category = "Tech System")
+	bool CanTech() const;
+
+	/** Check if currently in tech window. */
+	UFUNCTION(BlueprintPure, Category = "Tech System")
+	bool IsInTechWindow() const;
+
+	/** Handle tech input (shield/guard button pressed). */
+	void OnTechInputPressed();
+
+	/** Handle tech input released (for hold input detection). */
+	void OnTechInputReleased();
+
+	/** Perform tech based on current situation (ground/wall) and input direction. */
+	void PerformTech(ETechType TechType);
+
+	/** Check if character should enter techable state (tumbling/reeling). */
+	void UpdateTechableState();
+
+	/** Detect ground contact and attempt tech if input was buffered. */
+	virtual void Landed(const FHitResult& Hit) override;
+
+	/** Detect wall contact and attempt tech if input was buffered. Called from NotifyHit. */
+	virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
 	// ========================================================================
 	// CAMERA & LOCK-ON SYSTEM
@@ -546,6 +626,25 @@ private:
 	
 	/** Calculate penalty increment based on roll direction (ForwardVector: 1 = forward, -1 = backward). */
 	float CalculateRollPenaltyIncrement(float ForwardVectorDot) const;
+
+	// ========================================================================
+	// PRIVATE TECH HELPERS
+	// ========================================================================
+	
+	/** Start tech window (called when entering techable state or detecting contact). */
+	void StartTechWindow();
+
+	/** End tech window (called when tech is performed or window expires). */
+	void EndTechWindow();
+
+	/** Check if character is about to hit ground (for predictive tech window). */
+	bool WillHitGroundSoon() const;
+
+	/** Check if character is about to hit wall (for predictive tech window). */
+	bool WillHitWallSoon() const;
+
+	/** Determine tech type based on input direction and contact type. */
+	ETechType DetermineTechType(bool bIsWallContact, float InputForward, float InputRight) const;
 
 	// ========================================================================
 	// PRIVATE UTILITY FUNCTIONS
