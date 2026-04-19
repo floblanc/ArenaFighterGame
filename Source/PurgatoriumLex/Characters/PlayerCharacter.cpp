@@ -43,7 +43,7 @@ APlayerCharacter::APlayerCharacter()
 		
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = false; // lock camera behind character
+	bUseControllerRotationYaw = false; // lock camera behind character if true, but never use it because bUseControllerDesiredRotation and bOrientRotationToMovement are used instead.
 	bUseControllerRotationRoll = false;
 
 	bIsRunning = false;
@@ -574,14 +574,22 @@ void APlayerCharacter::DoJumpEnd()
 
 void APlayerCharacter::UnlockCharacterBackFromCamera()
 {
-	bUseControllerRotationYaw = false;
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	
+	MoveComp->bOrientRotationToMovement = true;
+	MoveComp->bUseControllerDesiredRotation = false;
+
 	bIsCameraLockedOnCharacterBack = false;
 	RequestNeutralPosture();
 }
 
 void APlayerCharacter::LockCameraOnCharacterBack()
 {
-	bUseControllerRotationYaw = true;
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	
+	MoveComp->bOrientRotationToMovement = false;
+	MoveComp->bUseControllerDesiredRotation = true;
+
 	bIsCameraLockedOnCharacterBack = true;
 }
 
