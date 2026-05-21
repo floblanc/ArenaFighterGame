@@ -89,3 +89,30 @@ Build/Android/res/*/*
 # Ignore plugins binaries on deep subfolders
 Plugins/**/Binaries/*
 Plugins/**/Intermediate/*
+
+### IDE / OS junk ###
+.idea/
+.vscode/
+*.code-workspace
+.fleet/
+.cache/
+
+[Tt]humbs.db
+[Dd]esktop.ini
+.DS_Store
+
+### Debug / profiling / build artifacts ###
+*.pdb
+*.ipdb
+*.iobj
+*.ilk
+*.exp
+*.dmp
+*.log
+*.tmp
+*.bak
+*.old
+
+### Unreal (additional common generated outputs) ###
+LocalBuilds/
+Saved/StagedBuilds/
