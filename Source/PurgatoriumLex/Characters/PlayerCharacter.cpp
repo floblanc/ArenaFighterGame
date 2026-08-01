@@ -10,6 +10,8 @@
 #include "Input/PurgatoriumLexInputComponent.h"
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
+#include "Combat/FighterCombatComponent.h"
+#include "Combat/LightAttackMoveSet.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -27,6 +29,8 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "CollisionQueryParams.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
 
 // #include "PurgatoriumLexMacros.h"
 
@@ -126,6 +130,12 @@ APlayerCharacter::APlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+	// Fixed-tick combat sim (posture + light attack). Tunable on the component / character defaults.
+	FighterCombat = CreateDefaultSubobject<UFighterCombatComponent>(TEXT("FighterCombat"));
+	bUseFighterCombatSim = true;
+	bRouteLightAttackToCombatSim = true;
+	bAutoPlaySimAttackMontage = true;
 
 	// set the player tag
 	Tags.Add(FName("Player"));
@@ -232,6 +242,16 @@ void APlayerCharacter::BeginPlay()
 		SetTeamId(1); // Unpossessed = enemy team for lock-on
 	}
 	// ========== END TEMPORARY ==========
+
+	if (FighterCombat)
+	{
+		FighterCombat->OnLightAttackStarted.AddDynamic(this, &APlayerCharacter::HandleSimLightAttackStarted);
+		// Keep component posture delay in sync with character defaults (legacy fields still editable).
+		FighterCombat->PostureBaseFramesDelay = PostureBaseFramesDelay;
+		FighterCombat->PosturePenaltyPerChange = PosturePenalty;
+		FighterCombat->PostureMaxPenalty = PostureMaxPenaltyValue;
+		FighterCombat->ApplyConfigToSim();
+	}
 }
 
 // Called every frame
@@ -241,9 +261,17 @@ void APlayerCharacter::Tick(float DeltaTime)
 
 	// Input buffer: client-side feel improvement (not replicated)
 	SimulationFrame++;
-	
-	// Process delayed posture changes (frame-based for rollback compatibility)
-	ProcessPendingPostureChange();
+
+	if (bUseFighterCombatSim && FighterCombat)
+	{
+		// Sim owns posture / attack phase. Mirror for AnimBP + legacy bools.
+		SyncPresentationFromCombatSim();
+	}
+	else
+	{
+		// Legacy path (pre-sim): frame counters on the character Tick.
+		ProcessPendingPostureChange();
+	}
 	
 	// Process roll staling reset (reset penalty after RollResetFrames without dodging - frame-based for rollback compatibility)
 	if (RollStalePenalty > 0.0f && LastDodgeFrame >= 0)
@@ -258,8 +286,8 @@ void APlayerCharacter::Tick(float DeltaTime)
 		}
 	}
 	
-	// Process posture staling reset (reset penalty after PostureResetFrames without posture changes - frame-based for rollback compatibility)
-	if (PostureStalePenalty > 0.0f && LastPostureChangeFrame >= 0)
+	// Process posture staling reset (legacy path only — sim resets its own penalty)
+	if (!bUseFighterCombatSim && PostureStalePenalty > 0.0f && LastPostureChangeFrame >= 0)
 	{
 		const int32 FramesSinceLastPostureChange = SimulationFrame - LastPostureChangeFrame;
 		
@@ -697,18 +725,34 @@ int32 APlayerCharacter::GetRollIntangibilityDelay() const
 
 int32 APlayerCharacter::GetPostureIntangibilityDelay() const
 {
+	const float Penalty = (bUseFighterCombatSim && FighterCombat)
+		? FighterCombat->GetSimStateCopy().PostureStalePenalty
+		: PostureStalePenalty;
+	const float MaxPenalty = (bUseFighterCombatSim && FighterCombat)
+		? FighterCombat->PostureMaxPenalty
+		: PostureMaxPenaltyValue;
+
 	// When fully stale (penalty >= max), delay is 4 frames
 	// Linearly interpolate from 0 (fresh) to 4 (fully stale)
-	if (PostureStalePenalty <= 0.0f)
+	if (Penalty <= 0.0f)
 	{
 		return 0;
 	}
 	
 	// Calculate delay based on penalty ratio (0.0 to 1.0)
-	float PenaltyRatio = FMath::Clamp(PostureStalePenalty / PostureMaxPenaltyValue, 0.0f, 1.0f);
+	float PenaltyRatio = FMath::Clamp(Penalty / MaxPenalty, 0.0f, 1.0f);
 	int32 Delay = FMath::RoundToInt(PenaltyRatio * 4.0f);
 	
 	return Delay;
+}
+
+float APlayerCharacter::GetPostureDurationMultiplier() const
+{
+	if (bUseFighterCombatSim && FighterCombat)
+	{
+		return 1.0f + FighterCombat->GetSimStateCopy().PostureStalePenalty;
+	}
+	return 1.0f + PostureStalePenalty;
 }
 
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
@@ -726,112 +770,62 @@ void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 	// input is a Vector2D
 	FVector2D MovementVector = Value.Get<FVector2D>();
 
-	if (Controller != nullptr && !bIsCharging)
+	if (Controller == nullptr || bIsCharging)
 	{
-		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
-		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
-		
-		UE_LOG(LogTemp, Warning, TEXT("\nAngle between -180 and 180 for Actual Posture : %f\n"), AngleDeg);
-		
-		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
+		return;
+	}
 
-		UE_LOG(LogTemp, Warning, TEXT("\nAngle not Rounded for Actual Posture : %f\n"), AngleDeg);
+	if (bUseFighterCombatSim && FighterCombat)
+	{
+		// WHY feed stick into the component instead of setting ActualPosture here:
+		// Character owns input devices; sim owns posture truth (delay/staling/flags).
+		// AnimBP still sees ActualPosture via SyncPresentationFromCombatSim().
+		FighterCombat->SetPostureStick(
+			MovementVector,
+			/*bOverrideActive=*/ bIsPostureActionActive,
+			/*bAllowMovementPosture=*/ bIsCameraLockedOnCharacterBack && !bIsPostureActionActive);
+		return;
+	}
 
-		int finalAngle = FMath::RoundToInt(AngleDeg);
-		UE_LOG(LogTemp, Warning, TEXT("Angle for Actual Posture : %i\n"), finalAngle);
-
-		// Determine the rounded direction
-		// switch (finalAngle)
-		// {
-		// 	case 15 ... 65:
-		// 		ActualPosture = EPosture::E_DownRight;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownRight\n"));
-		// 		break;
-		// 	case 66 ... 115:
-		// 		ActualPosture = EPosture::E_Down;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Down\n"));
-		// 		break;
-		// 	case 116 ... 165:
-		// 		ActualPosture = EPosture::E_DownLeft;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownLeft\n"));
-		// 		break;
-		// 	case 166 ... 235:
-		// 		ActualPosture = EPosture::E_Left;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Left\n"));
-		// 		break;
-		// 	case 236 ... 305:
-		// 		ActualPosture = EPosture::E_Up;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Up\n"));
-		// 		break;
-		// 	case 306 ... 360:
-		// 	case 0 ... 14:
-		// 		ActualPosture = EPosture::E_Right;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Right\n"));
-		// 		break;
-		// }
-		// switch (finalAngle)
-		// {
-		// 	case 296 ... 345:
-		// 		ActualPosture = EPosture::E_DownRight;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownRight\n"));
-		// 		break;
-		// 	case 246 ... 295:
-		// 		ActualPosture = EPosture::E_Down;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Down\n"));
-		// 		break;
-		// 	case 196 ... 245:
-		// 		ActualPosture = EPosture::E_DownLeft;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownLeft\n"));
-		// 		break;
-		// 	case 126 ... 195:
-		// 		ActualPosture = EPosture::E_Left;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Left\n"));
-		// 		break;
-		// 	case 56 ... 125:
-		// 		ActualPosture = EPosture::E_Up;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Up\n"));
-		// 		break;
-		// 	case 346 ... 360:
-		// 	case 0 ... 55:
-		// 		ActualPosture = EPosture::E_Right;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Right\n"));
-		// 		break;
-		// }
-		//////////////TRUC MOCHE POUR WINDOWS///////////////////
-		EPosture TargetPosture = EPosture::E_Neutral;
-		
-		if (finalAngle >= 296 && finalAngle <= 345)
-		{
-			TargetPosture = EPosture::E_DownRight;
-		}
-		else if (finalAngle >= 246 && finalAngle <= 295)
-		{
-			TargetPosture = EPosture::E_Down;
-		}
-		else if (finalAngle >= 196 && finalAngle <= 245)
-		{
-			TargetPosture = EPosture::E_DownLeft;
-		}
-		else if (finalAngle >= 126 && finalAngle <= 195)
-		{
-			TargetPosture = EPosture::E_Left;
-		}
-		else if (finalAngle >= 56 && finalAngle <= 125)
-		{
-			TargetPosture = EPosture::E_Up;
-		}
-		else if ((finalAngle >= 346 && finalAngle <= 360) || (finalAngle >= 0 && finalAngle <= 55))
-		{
-			TargetPosture = EPosture::E_Right;
-		}
-		
-		// Request posture change (will be queued with delay if none pending)
+	// ---- Legacy path (bUseFighterCombatSim == false) ----
+	{
+		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);
+		float AngleDeg = FMath::RadiansToDegrees(AngleRad);
+		if (AngleDeg < 0.f) AngleDeg += 360.f;
+		const int32 FinalAngle = FMath::RoundToInt(AngleDeg);
+		const EPosture TargetPosture = FCombatPostureMath::PostureFromStick(MovementVector);
+		(void)FinalAngle; // kept for parity with old logging if you re-enable it
 		RequestPostureChange(TargetPosture);
 	}
 }
 
 bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 {
+	if (bUseFighterCombatSim && FighterCombat)
+	{
+		if (TargetPosture == EPosture::E_Neutral)
+		{
+			FighterCombat->RequestNeutralPosture();
+			return true;
+		}
+		// Non-neutral requests should come from SetPostureStick; keep API for callers.
+		const FVector2D FakeStick = [&]() -> FVector2D
+		{
+			switch (TargetPosture)
+			{
+			case EPosture::E_Up:        return FVector2D(0.f, 1.f);
+			case EPosture::E_Down:      return FVector2D(0.f, -1.f);
+			case EPosture::E_Left:      return FVector2D(-1.f, 0.f);
+			case EPosture::E_Right:     return FVector2D(1.f, 0.f);
+			case EPosture::E_DownLeft:  return FVector2D(-1.f, -1.f);
+			case EPosture::E_DownRight: return FVector2D(1.f, -1.f);
+			default:                    return FVector2D::ZeroVector;
+			}
+		}();
+		FighterCombat->SetPostureStick(FakeStick, true, false);
+		return true;
+	}
+
 	// Only change posture if no other posture change is pending
 	if (PostureChangeRequestFrame >= 0)
 	{
@@ -907,6 +901,55 @@ void APlayerCharacter::ProcessPendingPostureChange()
 		// Clear pending change
 		PostureChangeRequestFrame = -1;
 		PendingPosture = EPosture::E_Neutral;
+	}
+}
+
+void APlayerCharacter::SyncPresentationFromCombatSim()
+{
+	if (!FighterCombat)
+	{
+		return;
+	}
+
+	const FFighterSimState SimState = FighterCombat->GetSimStateCopy();
+	// WHY mirror into legacy fields:
+	// AnimBP / old gates still read ActualPosture and bIsInAttackAnimation.
+	// Long-term delete those reads in favor of FighterCombat getters / sim flags.
+	ActualPosture = SimState.Posture;
+	PostureStalePenalty = SimState.PostureStalePenalty;
+	bIsInAttackAnimation = SimState.HasFlag(FighterStateFlags::Attacking);
+
+	// WHY also poke ASC loose tag: transitional compatibility for anything still
+	// checking State.PostureChanging. Not rollback authority — sim flag is.
+	if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+	{
+		using namespace PurgatoriumLexGameplayTags;
+		if (SimState.HasFlag(FighterStateFlags::PostureChanging))
+		{
+			ASC->AddLooseGameplayTag(State_PostureChanging);
+		}
+		else
+		{
+			ASC->RemoveLooseGameplayTag(State_PostureChanging);
+		}
+	}
+}
+
+void APlayerCharacter::HandleSimLightAttackStarted(EPosture SnapshotPosture, UAnimMontage* Montage, int32 SimFrame)
+{
+	UE_LOG(LogTemp, Warning,
+		TEXT("[CombatSim] Presentation: LightAttack started posture=%d frame=%d montage=%s"),
+		(int32)SnapshotPosture, SimFrame, *GetNameSafe(Montage));
+
+	if (!bAutoPlaySimAttackMontage || !Montage)
+	{
+		return;
+	}
+
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		MeshComp->GetAnimInstance(); // ensure ABP exists
+		PlayAnimMontage(Montage);
 	}
 }
 
@@ -1119,6 +1162,13 @@ bool APlayerCharacter::CanActivateAbilityForInputTag_Implementation(FGameplayTag
 
 bool APlayerCharacter::CanPerformLightAttack_Implementation() const
 {
+	if (bUseFighterCombatSim && FighterCombat && bRouteLightAttackToCombatSim)
+	{
+		return !FighterCombat->IsAttacking()
+			&& GetCharacterMovement()
+			&& !GetCharacterMovement()->IsFalling();
+	}
+
 	const UCharacterMovementComponent* Movement = GetCharacterMovement();
 	return Movement
 		&& !Movement->IsFalling()
@@ -1129,6 +1179,26 @@ bool APlayerCharacter::CanPerformLightAttack_Implementation() const
 void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Ability): %s"), *InputTag.ToString());
+
+	using namespace PurgatoriumLexGameplayTags;
+
+	// WHY divert LightAttack away from GAS when flags are on:
+	// GAS activation is the old modular path; sim timing is the rollback-oriented path.
+	// Keeping both behind flags lets you validate feel without deleting GA_Kick yet.
+	if (InputTag == InputTag_LightAttack
+		&& bUseFighterCombatSim
+		&& bRouteLightAttackToCombatSim
+		&& FighterCombat)
+	{
+		if (!CanActivateAbilityForInputTag(InputTag))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[CombatSim] LightAttack gated — not sent to sim"));
+			return;
+		}
+		FighterCombat->PressLightAttack();
+		UE_LOG(LogTemp, Warning, TEXT("[CombatSim] LightAttack pressed -> sim (posture will be snapshotted on next fixed tick)"));
+		return;
+	}
 
 	if (!CanActivateAbilityForInputTag(InputTag))
 	{

@@ -23,7 +23,7 @@ void UPurgatoriumLexAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimePro
 	DOREPLIFETIME_CONDITION_NOTIFY(UPurgatoriumLexAttributeSet, MaxStamina, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UPurgatoriumLexAttributeSet, Strength, COND_None, REPNOTIFY_Always);
 	DOREPLIFETIME_CONDITION_NOTIFY(UPurgatoriumLexAttributeSet, MaxStrength, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UPurgatoriumLexAttributeSet, Damage, COND_None, REPNOTIFY_Always);
+	// Damage is a meta attribute (transient during GE execution) — do not replicate.
 }
 
 void UPurgatoriumLexAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -92,10 +92,5 @@ void UPurgatoriumLexAttributeSet::OnRep_Strength(const FGameplayAttributeData& O
 void UPurgatoriumLexAttributeSet::OnRep_MaxStrength(const FGameplayAttributeData& OldMaxStrength)
 {
 	GAMEPLAYATTRIBUTE_REPNOTIFY(UPurgatoriumLexAttributeSet, MaxStrength, OldMaxStrength);
-}
-
-void UPurgatoriumLexAttributeSet::OnRep_Damage(const FGameplayAttributeData& OldDamage)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UPurgatoriumLexAttributeSet, Damage, OldDamage);
 }
 

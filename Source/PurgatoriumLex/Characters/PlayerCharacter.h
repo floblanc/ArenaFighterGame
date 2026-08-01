@@ -7,18 +7,22 @@
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
 #include "GameplayTagContainer.h"
+#include "Combat/CombatTypes.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class UPurgatoriumLexInputComponent;
+class UFighterCombatComponent;
+class UAnimMontage;
 struct FInputActionValue;
 struct FGameplayTag;
 
 // ============================================================================
 // ENUMS
 // ============================================================================
+// EPosture lives in Combat/CombatTypes.h (sim + AnimBP share one definition).
 
 UENUM(BlueprintType)
 enum class EMovementState : uint8
@@ -29,20 +33,6 @@ enum class EMovementState : uint8
     E_Rolling	UMETA(DisplayName = "ROLLING"),
     E_Hitting	UMETA(DisplayName = "HITTING"),
     E_Other		UMETA(DisplayName = "OTHER"),
-};
-
-UENUM(BlueprintType)
-enum class EPosture : uint8
-{
-    E_Neutral	UMETA(DisplayName = "NEUTRAL"),
-    E_Up		UMETA(DisplayName = "UP"),
-    E_Down		UMETA(DisplayName = "DOWN"),
-    E_Left		UMETA(DisplayName = "LEFT"),
-    E_Right		UMETA(DisplayName = "RIGHT"),
-    // E_UpLeft	UMETA(DisplayName = "UPLEFT"),
-    // E_UpRight	UMETA(DisplayName = "UPRIGHT"),
-    E_DownLeft	UMETA(DisplayName = "DOWNLEFT"),
-    E_DownRight	UMETA(DisplayName = "DOWNRIGHT"),
 };
 
 UENUM(BlueprintType)
@@ -139,6 +129,38 @@ public:
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
+	/**
+	 * Fixed-tick combat sim bridge (posture + light attack timing).
+	 * WHY a component: keeps rules out of this god-class; see Combat/CombatSim_REVIEW.md
+	 * for architecture (sim authority vs GAS vs AnimBP).
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat Sim")
+	TObjectPtr<UFighterCombatComponent> FighterCombat;
+
+	/**
+	 * WHY this flag exists (temporary dual path):
+	 *   Migration safety — compare old Tick posture vs sim without bricking PIE.
+	 *   Delete legacy RequestPostureChange path once you trust the sim.
+	 * When true: sim is posture authority; ActualPosture is a presentation mirror.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
+	bool bUseFighterCombatSim = true;
+
+	/**
+	 * WHY separate from bUseFighterCombatSim:
+	 *   Lets you keep sim posture (AnimBP) while still testing GA_Kick via GAS.
+	 * When both true: LightAttack input never calls ASC for that tag.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
+	bool bRouteLightAttackToCombatSim = true;
+
+	/**
+	 * WHY optional auto-play: presentation must be swappable (BP VFX, different mesh)
+	 * without changing sim rules. Off = listen to OnLightAttackStarted yourself.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
+	bool bAutoPlaySimAttackMontage = true;
+
 	// ========================================================================
 	// PUBLIC FUNCTIONS - INPUT HANDLERS
 	// ========================================================================
@@ -189,7 +211,7 @@ public:
 
 	/** Get duration multiplier based on current posture staling penalty (1.0 = fresh, increases with penalty). */
 	UFUNCTION(BlueprintPure, Category = "Posture Staling")
-	float GetPostureDurationMultiplier() const { return 1.0f + PostureStalePenalty; }
+	float GetPostureDurationMultiplier() const;
 
 	/** Get intangibility delay in frames for posture changes (0 = fresh, 4 = fully stale). */
 	UFUNCTION(BlueprintPure, Category = "Posture Staling")
@@ -358,6 +380,12 @@ protected:
 	// POSTURE SYSTEM
 	// ========================================================================
 	
+	/**
+	 * Posture seen by AnimBP / Blueprints.
+	 * WHY still on the character: zero AnimBP migration — your existing blend reads this.
+	 * WHY not authority when sim is on: CombatSim_REVIEW.md ("sim writes, mesh reads").
+	 * Writing this from Blueprint while bUseFighterCombatSim=true will be overwritten.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	EPosture ActualPosture;
 
@@ -610,6 +638,12 @@ private:
 	
 	/** Process pending posture change in Tick - applies change when delay elapses. */
 	void ProcessPendingPostureChange();
+
+	/** Sync ActualPosture / attack bools from FighterCombat when sim is enabled. */
+	void SyncPresentationFromCombatSim();
+
+	UFUNCTION()
+	void HandleSimLightAttackStarted(EPosture SnapshotPosture, UAnimMontage* Montage, int32 SimFrame);
 
 	// ========================================================================
 	// PRIVATE CAMERA HELPERS

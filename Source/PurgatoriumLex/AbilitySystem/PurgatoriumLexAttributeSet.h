@@ -51,8 +51,12 @@ public:
 	FGameplayAttributeData MaxStrength;
 	ATTRIBUTE_ACCESSORS_BASIC(UPurgatoriumLexAttributeSet, MaxStrength);
 
-	// Damage value calculated during a GE. Meta attribute.
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, ReplicatedUsing = OnRep_Damage, Category = "Ability | Gameplay Attribute")
+	/**
+	 * Meta attribute: temporary GE magnitude, converted to -Health in PostGameplayEffectExecute.
+	 * WHY not replicated: clients should never need the transient "Damage" value —
+	 * only the resulting Health. Replicating meta attrs is a common GAS footgun.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Ability | Gameplay Attribute")
 	FGameplayAttributeData Damage;
 	ATTRIBUTE_ACCESSORS_BASIC(UPurgatoriumLexAttributeSet, Damage);
 
@@ -73,8 +77,6 @@ public:
 
 	UFUNCTION()
 	void OnRep_MaxStrength(const FGameplayAttributeData& OldMaxStrength);
-		
-	UFUNCTION()
-	void OnRep_Damage(const FGameplayAttributeData& OldDamage);
 
+	// OnRep_Damage removed: meta Damage is no longer replicated.
 };
