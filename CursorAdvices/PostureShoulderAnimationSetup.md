@@ -1,5 +1,7 @@
 # Posture Shoulder Animation Setup (Enum → Mixed Animations)
 
+> **Still valid for AnimBP.** For combat authority / sim ownership of posture, see [Posture_System.md](Posture_System.md).
+
 ## The idea
 
 - You already have an **enum** in C++ (e.g. `EPosture`: Neutral, Up, Down, Left, Right, DownLeft, DownRight) and a variable on the character (e.g. `ActualPosture`).
