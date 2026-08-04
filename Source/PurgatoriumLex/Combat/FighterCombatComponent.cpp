@@ -42,9 +42,9 @@ void UFighterCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	RunFixedTicks(DeltaTime);
 }
 
-void UFighterCombatComponent::SetPostureStick(const FVector2D& Stick, bool bOverrideActive, bool bAllowMovementPosture)
+void UFighterCombatComponent::SetPostureDirection(const FVector2D& Direction, bool bOverrideActive, bool bAllowMovementPosture)
 {
-	PendingInput.PostureStick = Stick;
+	PendingInput.PostureDirection = Direction;
 	PendingInput.bPostureOverrideActive = bOverrideActive;
 	PendingInput.bAllowMovementPosture = bAllowMovementPosture;
 }

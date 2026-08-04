@@ -14,6 +14,7 @@ These are **not** engine docs and not always in sync with code. Prefer code + th
 | [CombatSim_Design.md](CombatSim_Design.md) | Fixed-tick sim, state blob, move DataAssets, code map |
 | [Rollback_And_GGPO.md](Rollback_And_GGPO.md) | What “rollback-ready” means, GGPO later, honesty about old notes |
 | [Posture_System.md](Posture_System.md) | Posture as sim authority + always-on visual + attack snapshot |
+| [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md) | Future anti-spam: slow-mo / exhaustion (not implemented) |
 | [UE5_Basics_UObject_And_Naming.md](UE5_Basics_UObject_And_Naming.md) | `U`/`A`/`F` naming, what UObject is and why |
 
 **Implementation review in Source (authoritative for the sim PR):**  

@@ -84,13 +84,13 @@ void FFighterCombatSim::TickPosture(const FFighterFrameInput& Input)
 		return;
 	}
 
-	// Dedicated posture stick wins; otherwise movement stick (caller fills PostureStick).
-	if (Input.PostureStick.SizeSquared() < 0.01f)
+	// Dedicated posture direction wins; otherwise movement direction (caller fills PostureDirection).
+	if (Input.PostureDirection.SizeSquared() < 0.01f)
 	{
 		return;
 	}
 
-	const EPosture Target = FCombatPostureMath::PostureFromStick(Input.PostureStick);
+	const EPosture Target = FCombatPostureMath::PostureFromDirection(Input.PostureDirection);
 	RequestPostureChange(Target);
 }
 

@@ -95,7 +95,7 @@ public:
 	bool IsAttacking() const { return Sim.GetState().HasFlag(FighterStateFlags::Attacking); }
 
 	/** Character writes intent here; sim consumes on fixed ticks. */
-	void SetPostureStick(const FVector2D& Stick, bool bOverrideActive, bool bAllowMovementPosture);
+	void SetPostureDirection(const FVector2D& Direction, bool bOverrideActive, bool bAllowMovementPosture);
 	void RequestNeutralPosture();
 	void PressLightAttack();
 

@@ -90,7 +90,7 @@ namespace FighterStateFlags
 // WHY a dedicated input struct (not reading Enhanced Input inside the sim):
 //   - Rollback replays INPUTS, not UE input devices.
 //   - Sim stays free of PlayerController / World time.
-// Sticky fields (sticks, allow flags) vs edges (pressed this frame) are intentional:
+// Sticky fields (directions, allow flags) vs edges (pressed this frame) are intentional:
 //   edges must clear after one sim tick so resim does not re-trigger forever.
 
 USTRUCT(BlueprintType)
@@ -98,25 +98,28 @@ struct PURGATORIUMLEX_API FFighterFrameInput
 {
 	GENERATED_BODY()
 
-	/** Reserved: movement-in-sim later. Unused by rules today on purpose (CMC still owns locomotion). */
+	/**
+	 * Locomotion intent as a 2D direction (WASD, left stick, etc. — device-agnostic).
+	 * Reserved: movement-in-sim later. Unused by rules today (CMC still owns locomotion).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-	FVector2D MoveStick = FVector2D::ZeroVector;
+	FVector2D MoveDirection = FVector2D::ZeroVector;
 
 	/**
-	 * Stick used to pick posture.
-	 * WHY one stick field + two bools (instead of two sticks):
+	 * Direction used to pick posture (same vector space as MoveDirection).
+	 * WHY one direction field + two bools (instead of two vectors):
 	 *   Caller (character) already decides whether the value came from dedicated
 	 *   posture input or movement (passive lock-on). Sim only needs the resulting
 	 *   vector + policy flags — keeps angle math in one place.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-	FVector2D PostureStick = FVector2D::ZeroVector;
+	FVector2D PostureDirection = FVector2D::ZeroVector;
 
 	/** Dedicated posture held => overwrites movement-based posture (your design). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	bool bPostureOverrideActive = false;
 
-	/** Lock-on "camera on back" allows movement stick to drive posture. */
+	/** Lock-on "camera on back" allows movement direction to drive posture. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	bool bAllowMovementPosture = false;
 
@@ -223,34 +226,50 @@ struct PURGATORIUMLEX_API FFighterSimState
 };
 
 // ---------------------------------------------------------------------------
-// Shared stick -> posture mapping
+// Shared direction -> posture mapping
 // ---------------------------------------------------------------------------
-// WHY extracted from PlayerCharacter:
-//   Legacy path and sim must use identical windows or feel/debug will diverge.
-// Angle bands match your existing ProcessPostureInput conventions on purpose
-// (behavior parity > "cleaner math" in this migration step).
+// Angle after Atan2, normalized to [0, 360]: 0° = +X (right), CCW toward +Y (forward).
+//
+//                    Up (56..125)
+//                       |
+//     Left (126..195) --+-- Right (346..360 OR 0..55)
+//                       |
+//         DownLeft   Down   DownRight
+//        (196..245)(246..295)(296..345)
 
 struct PURGATORIUMLEX_API FCombatPostureMath
 {
-	static EPosture PostureFromStick(const FVector2D& Stick)
+	static bool IsAngleInRange(int32 Angle, int32 MinInclusive, int32 MaxInclusive)
 	{
-		if (Stick.SizeSquared() < 0.01f)
+		return Angle >= MinInclusive && Angle <= MaxInclusive;
+	}
+
+	/** Device-agnostic direction (stick / WASD / …). Near-zero => Neutral. */
+	static EPosture PostureFromDirection(const FVector2D& Direction)
+	{
+		if (Direction.SizeSquared() < 0.01f)
 		{
 			return EPosture::E_Neutral;
 		}
 
-		float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(Stick.Y, Stick.X));
+		float AngleDeg = FMath::RadiansToDegrees(FMath::Atan2(Direction.Y, Direction.X));
 		if (AngleDeg < 0.f)
 		{
 			AngleDeg += 360.f;
 		}
-		const int32 FinalAngle = FMath::RoundToInt(AngleDeg);
+		const int32 Angle = FMath::Clamp(FMath::RoundToInt(AngleDeg), 0, 360);
 
-		if (FinalAngle >= 296 && FinalAngle <= 345) { return EPosture::E_DownRight; }
-		if (FinalAngle >= 246 && FinalAngle <= 295) { return EPosture::E_Down; }
-		if (FinalAngle >= 196 && FinalAngle <= 245) { return EPosture::E_DownLeft; }
-		if (FinalAngle >= 126 && FinalAngle <= 195) { return EPosture::E_Left; }
-		if (FinalAngle >= 56  && FinalAngle <= 125) { return EPosture::E_Up; }
-		return EPosture::E_Right; // 346..360 and 0..55
+		if (IsAngleInRange(Angle, 56, 125))  { return EPosture::E_Up; }
+		if (IsAngleInRange(Angle, 126, 195)) { return EPosture::E_Left; }
+		if (IsAngleInRange(Angle, 196, 245)) { return EPosture::E_DownLeft; }
+		if (IsAngleInRange(Angle, 246, 295)) { return EPosture::E_Down; }
+		if (IsAngleInRange(Angle, 296, 345)) { return EPosture::E_DownRight; }
+		if (IsAngleInRange(Angle, 346, 360) || IsAngleInRange(Angle, 0, 55))
+		{
+			return EPosture::E_Right;
+		}
+
+		// Unreachable when Angle is in [0, 360] — defensive only.
+		return EPosture::E_Neutral;
 	}
 };

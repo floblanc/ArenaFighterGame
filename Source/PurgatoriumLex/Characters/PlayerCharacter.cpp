@@ -777,10 +777,10 @@ void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 
 	if (bUseFighterCombatSim && FighterCombat)
 	{
-		// WHY feed stick into the component instead of setting ActualPosture here:
+		// WHY feed direction into the component instead of setting ActualPosture here:
 		// Character owns input devices; sim owns posture truth (delay/staling/flags).
 		// AnimBP still sees ActualPosture via SyncPresentationFromCombatSim().
-		FighterCombat->SetPostureStick(
+		FighterCombat->SetPostureDirection(
 			MovementVector,
 			/*bOverrideActive=*/ bIsPostureActionActive,
 			/*bAllowMovementPosture=*/ bIsCameraLockedOnCharacterBack && !bIsPostureActionActive);
@@ -789,12 +789,7 @@ void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 
 	// ---- Legacy path (bUseFighterCombatSim == false) ----
 	{
-		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);
-		float AngleDeg = FMath::RadiansToDegrees(AngleRad);
-		if (AngleDeg < 0.f) AngleDeg += 360.f;
-		const int32 FinalAngle = FMath::RoundToInt(AngleDeg);
-		const EPosture TargetPosture = FCombatPostureMath::PostureFromStick(MovementVector);
-		(void)FinalAngle; // kept for parity with old logging if you re-enable it
+		const EPosture TargetPosture = FCombatPostureMath::PostureFromDirection(MovementVector);
 		RequestPostureChange(TargetPosture);
 	}
 }
@@ -808,8 +803,8 @@ bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 			FighterCombat->RequestNeutralPosture();
 			return true;
 		}
-		// Non-neutral requests should come from SetPostureStick; keep API for callers.
-		const FVector2D FakeStick = [&]() -> FVector2D
+		// Non-neutral requests should come from SetPostureDirection; keep API for callers.
+		const FVector2D FakeDirection = [&]() -> FVector2D
 		{
 			switch (TargetPosture)
 			{
@@ -822,7 +817,7 @@ bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 			default:                    return FVector2D::ZeroVector;
 			}
 		}();
-		FighterCombat->SetPostureStick(FakeStick, true, false);
+		FighterCombat->SetPostureDirection(FakeDirection, true, false);
 		return true;
 	}
 

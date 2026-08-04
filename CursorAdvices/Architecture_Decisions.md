@@ -8,7 +8,7 @@ Decisions from design reviews for PurgatoriumLex. One page: what we chose and wh
 
 - Third-person **versus** arena fighter
 - **Oriented combat** (For Honor / KCD-like) with **6 postures + neutral**
-- Posture from movement (passive, while lock-on) and dedicated stick (active overwrite)
+- Posture from movement (passive, while lock-on) and dedicated direction input (active overwrite)
 - C++-first; Blueprint only for small wiring / AnimBP / DataAssets
 - Future: local splitscreen 1v1, then online with **rollback**
 

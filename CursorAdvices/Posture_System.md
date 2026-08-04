@@ -7,10 +7,12 @@ Oriented combat postures: design rules and where they live in code.
 ## Design
 
 - **6 directions + neutral:** Up, Down, Left, Right, DownLeft, DownRight, Neutral  
-- **Passive:** movement stick while lock-on (“camera on back”)  
+- **Passive:** movement direction while lock-on (“camera on back”)  
 - **Active:** dedicated posture input overwrites movement  
 - **Always visual:** idle/walk upper body tilts with current posture (AnimBP)  
 - **Combat:** attack/block/parry (later grabs) use posture; attack **snapshots** on press  
+
+Anti-spam (future): [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md).
 
 ---
 
@@ -40,7 +42,7 @@ No change required if AnimBP already reads `ActualPosture`.
 
 - Posture changes can be delayed N sim frames (`PostureBaseFramesDelay`, etc.)  
 - Repeated changes accumulate staling penalty (duration / intangibility helpers)  
-- One pending change at a time (stick noise during delay is dropped) — same rule as old character code  
+- One pending change at a time (direction noise during delay is dropped) — same rule as old character code  
 
 Live values belong in sim state; see [CombatSim_Design.md](CombatSim_Design.md).
 
@@ -51,8 +53,8 @@ Live values belong in sim state; see [CombatSim_Design.md](CombatSim_Design.md).
 | Concern | Place |
 |---------|--------|
 | Enum + state fields | `Source/PurgatoriumLex/Combat/CombatTypes.h` |
-| Stick → posture windows | `FCombatPostureMath::PostureFromStick` |
+| Direction → posture | `FCombatPostureMath::PostureFromDirection` |
 | Sim posture tick | `FighterCombatSim.cpp` → `TickPosture` |
-| Character feeds stick | `PlayerCharacter.cpp` → `ProcessPostureInput` |
+| Character feeds direction | `PlayerCharacter.cpp` → `ProcessPostureInput` |
 | Mirror for mesh | `SyncPresentationFromCombatSim` |
 | Snapshot on attack | `StartLightAttack(State.Posture)` |

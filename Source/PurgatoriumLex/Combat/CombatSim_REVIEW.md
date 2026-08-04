@@ -180,7 +180,7 @@ That split is intentional: editor-facing shell vs rewindable core.
 |------|----------|
 | Posture fields in state | `CombatTypes.h` → `FFighterSimState::Posture` etc. |
 | Posture rules | `FighterCombatSim.cpp` → `TickPosture` / `RequestPostureChange` |
-| Character feeds stick only | `PlayerCharacter.cpp` → `ProcessPostureInput` (sim branch → `SetPostureStick`) |
+| Character feeds direction only | `PlayerCharacter.cpp` → `ProcessPostureInput` (sim branch → `SetPostureDirection`) |
 | Mirror for AnimBP | `PlayerCharacter.cpp` → `SyncPresentationFromCombatSim` → `ActualPosture = …` |
 | Attack snapshot | `FighterCombatSim.cpp` → `StartLightAttack(State.Posture)` + `AttackSnapshotPosture` |
 

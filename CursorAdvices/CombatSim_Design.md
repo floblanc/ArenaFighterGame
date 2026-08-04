@@ -13,7 +13,7 @@ Fixed-tick fighter simulation: current combat architecture.
 | Layer | Type | Role |
 |-------|------|------|
 | `FFighterSimState` | `F` / `USTRUCT` | Rewindable authority blob (no Actor pointers) |
-| `FFighterFrameInput` | `F` / `USTRUCT` | Per-frame input (sticks + edge buttons) |
+| `FFighterFrameInput` | `F` / `USTRUCT` | Per-frame input (directions + edge buttons) |
 | `FFighterCombatSim` | plain `F` class | `TickFrame(Input)` only mutation entry |
 | `UFighterCombatComponent` | `U` component | 60 Hz catch-up from `DeltaTime`, events |
 | `ULightAttackMoveSet` | `U` DataAsset | Per-posture timings / damage / soft montage |
