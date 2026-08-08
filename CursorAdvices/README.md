@@ -16,9 +16,13 @@ These are **not** engine docs and not always in sync with code. Prefer code + th
 | [Posture_System.md](Posture_System.md) | Posture as sim authority + always-on visual + attack snapshot |
 | [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md) | Future anti-spam: slow-mo / exhaustion (not implemented) |
 | [UE5_Basics_UObject_And_Naming.md](UE5_Basics_UObject_And_Naming.md) | `U`/`A`/`F` naming, what UObject is and why |
+| [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md) | **Editor steps you must apply** after C++ combat/lock-on changes |
 
 **Implementation review in Source (authoritative for the sim PR):**  
 `Source/PurgatoriumLex/Combat/CombatSim_REVIEW.md`
+
+**God-class peel plan:**  
+`Source/PurgatoriumLex/Characters/PlayerCharacter_Decomposition.md`
 
 **AnimBP posture tilt (still valid):**  
 [PostureShoulderAnimationSetup.md](PostureShoulderAnimationSetup.md)

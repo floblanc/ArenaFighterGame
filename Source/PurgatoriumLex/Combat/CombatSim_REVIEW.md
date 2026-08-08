@@ -277,12 +277,19 @@ Tune posture delays / move set on `UFighterCombatComponent` only.
 
 ## Blueprint / editor steps (keep BP small)
 
+**Full checklist (apply in editor):**  
+[`CursorAdvices/Blueprint_Modification_Checklist.md`](../../../CursorAdvices/Blueprint_Modification_Checklist.md)
+
+Short version:
+
 1. Compile C++  
 2. Create Data Asset class **`LightAttackMoveSet`** → fill postures + optional montages  
 3. Assign on **FighterCombat → Light Attack Move Set**  
-4. PIE: posture via `ActualPosture`; logs `START/ACTIVE/END`
+4. If you customized lock-on: retune on **`LockOnCamera`**; replace old `bIsCameraLocked*` reads with getters  
+5. Fix BP errors from removed dual-path / posture-staling character fields  
+6. PIE: posture via `ActualPosture`; logs `START/ACTIVE/END`
 
-No Event Graph required.
+No Event Graph required for light attack.
 
 ---
 

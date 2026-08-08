@@ -8,6 +8,7 @@
 #include "PurgatoriumLexGameplayTags.h"
 #include "GameplayTagContainer.h"
 #include "Combat/CombatTypes.h"
+#include "Characters/PlayerCharacterTypes.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
@@ -15,84 +16,17 @@ class UCameraComponent;
 class UInputAction;
 class UPurgatoriumLexInputComponent;
 class UFighterCombatComponent;
+class ULockOnCameraComponent;
 class UAnimMontage;
+class UInputMappingContext;
+class UEnhancedInputComponent;
 struct FInputActionValue;
 struct FGameplayTag;
 
-// ============================================================================
-// ENUMS
-// ============================================================================
-// EPosture lives in Combat/CombatTypes.h (sim + AnimBP share one definition).
-
-UENUM(BlueprintType)
-enum class EMovementState : uint8
-{
-    E_Idle		UMETA(DisplayName = "IDLE"),
-    E_Walking	UMETA(DisplayName = "WALKING"),
-    E_Running	UMETA(DisplayName = "RUNNING"),
-    E_Rolling	UMETA(DisplayName = "ROLLING"),
-    E_Hitting	UMETA(DisplayName = "HITTING"),
-    E_Other		UMETA(DisplayName = "OTHER"),
-};
-
-UENUM(BlueprintType)
-enum class ETechType : uint8
-{
-    E_Standard	UMETA(DisplayName = "STANDARD"),
-    E_RollForward	UMETA(DisplayName = "ROLL FORWARD"),
-    E_RollBackward	UMETA(DisplayName = "ROLL BACKWARD"),
-    E_RollLeft	UMETA(DisplayName = "ROLL LEFT"),
-    E_RollRight	UMETA(DisplayName = "ROLL RIGHT"),
-    E_Wall		UMETA(DisplayName = "WALL"),
-    E_WallJump	UMETA(DisplayName = "WALL JUMP"),
-};
+// EPosture → Combat/CombatTypes.h
+// EMovementState / ETechType / ability buffer structs → Characters/PlayerCharacterTypes.h
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
-
-// ============================================================================
-// STRUCTS
-// ============================================================================
-
-/** Maps a Gameplay Ability to an Input Tag. Used to grant abilities and bind them to input in one place. */
-USTRUCT(BlueprintType)
-struct FAbilityInputMapping
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability")
-	TSubclassOf<class UGameplayAbility> AbilityClass;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability", Meta = (Categories = "InputTag"))
-	FGameplayTag InputTag;
-};
-
-/** Single entry in the ability input buffer. Frame-based for client-side feel improvement.
- *  NOTE: Client-side only - not replicated. Server only sees successful activations (handled by GAS). */
-USTRUCT(BlueprintType)
-struct FBufferedAbilityInput
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
-	FGameplayTag InputTag;
-
-	/** Frame number when this input was buffered (for deterministic expiry calculation). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
-	int32 BufferedFrame = 0;
-
-	FBufferedAbilityInput() = default;
-	FBufferedAbilityInput(const FGameplayTag& Tag, int32 Frame) : InputTag(Tag), BufferedFrame(Frame) {}
-
-	/** Calculate frames remaining based on current frame and buffer duration. */
-	int32 GetFramesRemaining(int32 CurrentFrame, int32 BufferFrames) const
-	{
-		return FMath::Max(0, BufferFrames - (CurrentFrame - BufferedFrame));
-	}
-};
-
-// ============================================================================
-// CLASS DECLARATION
-// ============================================================================
 
 UCLASS()
 class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
@@ -139,6 +73,31 @@ public:
 	/** If true, play montage from LightAttackMoveSet when sim starts an attack. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
 	bool bAutoPlaySimAttackMontage = true;
+
+	/**
+	 * Lock-on / camera-on-back (presentation). Not combat authority — see LockOnCameraComponent.
+	 * Boom + FollowCamera stay on this pawn for attachment; lock rules live on the component.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<ULockOnCameraComponent> LockOnCamera;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	bool IsCameraLockedOnEnemy() const;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	bool IsCameraLockedOnCharacterBack() const;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	AActor* GetLockedOnActor() const;
+
+	UFUNCTION(BlueprintPure, Category = "Character Info")
+	int32 GetTeamId() const { return TeamId; }
+
+	UFUNCTION(BlueprintCallable, Category = "Character Info")
+	void SetTeamId(int32 InTeamId) { TeamId = InTeamId; }
+
+	UFUNCTION(BlueprintPure, Category = "Character Info")
+	bool IsEnemyPlayer(const APlayerCharacter* Other) const;
 
 	// ========================================================================
 	// PUBLIC FUNCTIONS - INPUT HANDLERS
@@ -505,41 +464,6 @@ protected:
 	virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
 	// ========================================================================
-	// CAMERA & LOCK-ON SYSTEM
-	// ========================================================================
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	bool bIsCameraLockedOnEnemy;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	bool bIsCameraLockedOnCharacterBack;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	TArray<AActor*> lockOnCandidates;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	AActor* lockedOnActor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	float targetingHeighOffset;
-
-	/** Lock-on: max distance. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "100", ClampMax = "5000"))
-	float LockOnMaxDistance = 2000.f;
-
-	/** Lock-on: half-angle in degrees from camera view (unused when using screen projection). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "5", ClampMax = "90"))
-	float LockOnFOVDegrees = 45.f;
-
-	void LockUnlockCameraOnEnemy();
-
-	/** Update camera lock-on logic - called deterministically for rollback compatibility */
-	void UpdateCameraLockOn();
-
-	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
-	void RefreshLockOnCandidates();
-
-	// ========================================================================
 	// HEALTH & CHARACTER INFO
 	// ========================================================================
 	
@@ -581,14 +505,13 @@ private:
 	UFUNCTION()
 	void HandleSimLightAttackStarted(EPosture SnapshotPosture, UAnimMontage* Montage, int32 SimFrame);
 
-	// ========================================================================
-	// PRIVATE CAMERA HELPERS
-	// ========================================================================
-	
-	void LockCameraOnCharacterBack();
-	
-	UFUNCTION(BlueprintCallable)
-	void UnlockCharacterBackFromCamera();
+	UFUNCTION()
+	void HandleLockOnEnemyChanged(bool bLockedOnEnemy, AActor* LockedActor);
+
+	UFUNCTION()
+	void HandleLockOnBackChanged(bool bLockedOnBack);
+
+	void LockUnlockCameraOnEnemy();
 
 	// ========================================================================
 	// PRIVATE COMBAT HELPERS
@@ -615,16 +538,6 @@ private:
 
 	/** Determine tech type based on input direction and contact type. */
 	ETechType DetermineTechType(bool bIsWallContact, float InputForward, float InputRight) const;
-
-	// ========================================================================
-	// PRIVATE UTILITY FUNCTIONS
-	// ========================================================================
-	
-	bool IsEnemy(int id);
-	bool IsEnemy(APlayerCharacter *fighter);
-
-	int  GetTeamId();
-	void SetTeamId(int teamId);
 
 	// ========================================================================
 	// PRIVATE MEMBER VARIABLES

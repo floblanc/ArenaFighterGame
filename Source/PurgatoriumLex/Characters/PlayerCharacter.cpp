@@ -12,6 +12,7 @@
 #include "PurgatoriumLexGameplayTags.h"
 #include "Combat/FighterCombatComponent.h"
 #include "Combat/LightAttackMoveSet.h"
+#include "Characters/LockOnCameraComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -23,12 +24,6 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputActionValue.h"
-#include "Kismet/KismetMathLibrary.h"
-#include "Kismet/GameplayStatics.h"
-#include "Engine/World.h"
-#include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
-#include "CollisionQueryParams.h"
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 
@@ -57,15 +52,6 @@ APlayerCharacter::APlayerCharacter()
 	// Posture defaults (avoid calling RequestNeutralPosture() here because it relies on initialized state)
 	ActualPosture = EPosture::E_Neutral;
 	bIsPostureActionActive = false;
-	bIsCameraLockedOnCharacterBack = false;
-	bIsCameraLockedOnEnemy = false;
-	
-	lockedOnActor = nullptr;
-	targetingHeighOffset = 30.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
-
-	// Lock-on: defaults here; tune in Blueprint or replace with lobby/config later.
-	LockOnMaxDistance = 2000.f;
-	LockOnFOVDegrees = 45.f;
 
 	playerHealth = 1.00f;
 	bAttackHasBeenUsed = false;
@@ -123,6 +109,9 @@ APlayerCharacter::APlayerCharacter()
 	// Fixed-tick combat sim (posture + light attack). Tunable on the component.
 	FighterCombat = CreateDefaultSubobject<UFighterCombatComponent>(TEXT("FighterCombat"));
 	bAutoPlaySimAttackMontage = true;
+
+	// Lock-on / camera-on-back (presentation). Tune distance / height on this component.
+	LockOnCamera = CreateDefaultSubobject<ULockOnCameraComponent>(TEXT("LockOnCamera"));
 
 	// set the player tag
 	Tags.Add(FName("Player"));
@@ -223,6 +212,12 @@ void APlayerCharacter::BeginPlay()
 		FighterCombat->OnLightAttackStarted.AddDynamic(this, &APlayerCharacter::HandleSimLightAttackStarted);
 		FighterCombat->ApplyConfigToSim();
 	}
+
+	if (LockOnCamera)
+	{
+		LockOnCamera->OnLockOnEnemyChanged.AddDynamic(this, &APlayerCharacter::HandleLockOnEnemyChanged);
+		LockOnCamera->OnLockOnBackChanged.AddDynamic(this, &APlayerCharacter::HandleLockOnBackChanged);
+	}
 }
 
 // Called every frame
@@ -295,13 +290,6 @@ void APlayerCharacter::Tick(float DeltaTime)
 			}
 		}
 	}
-
-	// Update camera lock-on deterministically
-	// This is called from Tick() but is still deterministic for rollback netcode because:
-	// - It only uses actor positions and rotations (part of rollback state)
-	// - All calculations are pure functions of rollback state
-	// - As long as inputs (actor positions) are deterministic, output (camera rotation) is deterministic
-	UpdateCameraLockOn();
 
 	// Update techable state (check if character should be able to tech)
 	UpdateTechableState();
@@ -408,7 +396,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	bIsMoving = ((!(bIsInAttackAnimation)) || GetCharacterMovement()->IsFalling()) && !bIsCharging;
 
 	// Change Posture by default movement
-	if (bIsCameraLockedOnCharacterBack && bIsMoving && (bIsPostureActionActive == false))
+	if (IsCameraLockedOnCharacterBack() && bIsMoving && (bIsPostureActionActive == false))
 	{
 		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
@@ -419,7 +407,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr && bIsMoving)
 	{
-		if (bIsCameraLockedOnEnemy)
+		if (IsCameraLockedOnEnemy())
 		{
 			// route the input
 			DoMoveAroundSomething(MovementVector.X, MovementVector.Y);
@@ -451,8 +439,15 @@ void APlayerCharacter::DoMoveAroundSomething(float Right, float Forward)
 	if (originalXStepSize != 0.0)
 	{
 		// Get the maximum physics substep delta time.
+		AActor* LockedActor = GetLockedOnActor();
+		if (!LockedActor)
+		{
+			AddMovementInput(ForwardDirection, Forward);
+			AddMovementInput(RightDirection, Right);
+			return;
+		}
 		
-		double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+		double distance = (LockedActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 		UE_LOG(LogTemp, Warning, TEXT("distance : %f"), distance);
 		UE_LOG(LogTemp, Warning, TEXT("MaxWalkSpeed : %f"), GetCharacterMovement()->MaxWalkSpeed);
 		UE_LOG(LogTemp, Warning, TEXT("Right: %f"), Right);
@@ -552,31 +547,13 @@ void APlayerCharacter::DoJumpEnd()
 	StopJumping();
 }
 
-void APlayerCharacter::UnlockCharacterBackFromCamera()
-{
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	
-	MoveComp->bOrientRotationToMovement = true;
-	MoveComp->bUseControllerDesiredRotation = false;
-
-	bIsCameraLockedOnCharacterBack = false;
-	RequestNeutralPosture();
-}
-
-void APlayerCharacter::LockCameraOnCharacterBack()
-{
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	
-	MoveComp->bOrientRotationToMovement = false;
-	MoveComp->bUseControllerDesiredRotation = true;
-
-	bIsCameraLockedOnCharacterBack = true;
-}
-
 void APlayerCharacter::StartRunning()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Run"));
-	UnlockCharacterBackFromCamera();
+	if (LockOnCamera)
+	{
+		LockOnCamera->UnlockFromCharacterBack();
+	}
 
 	// Check if character is already running
 	bIsRunning = true;
@@ -586,9 +563,9 @@ void APlayerCharacter::StartRunning()
 
 void APlayerCharacter::StopRunning()
 {
-	if (bIsCameraLockedOnEnemy)
+	if (LockOnCamera && LockOnCamera->IsLockedOnEnemy())
 	{
-		LockCameraOnCharacterBack();
+		LockOnCamera->LockToCharacterBack();
 	}
 
 	bIsRunning = false;
@@ -707,7 +684,7 @@ float APlayerCharacter::GetPostureDurationMultiplier() const
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Posture"));
-	if (bIsCameraLockedOnCharacterBack)
+	if (IsCameraLockedOnCharacterBack())
 	{
 		bIsPostureActionActive = true;
 		ProcessPostureInput(Value);
@@ -727,7 +704,7 @@ void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 	FighterCombat->SetPostureDirection(
 		MovementVector,
 		/*bOverrideActive=*/ bIsPostureActionActive,
-		/*bAllowMovementPosture=*/ bIsCameraLockedOnCharacterBack && !bIsPostureActionActive);
+		/*bAllowMovementPosture=*/ IsCameraLockedOnCharacterBack() && !bIsPostureActionActive);
 }
 
 bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
@@ -818,170 +795,74 @@ void APlayerCharacter::PostureActionStopped()
 void APlayerCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
 {
 	// Change Posture by default movement
-	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
+	if (IsCameraLockedOnCharacterBack() && (bIsPostureActionActive == false))
 	{
 		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
 	}
 }
 
-bool APlayerCharacter::IsEnemy(int id)
+bool APlayerCharacter::IsEnemyPlayer(const APlayerCharacter* Other) const
 {
-	return (id != TeamId);
+	return Other && (Other->GetTeamId() != TeamId);
 }
 
-bool APlayerCharacter::IsEnemy(APlayerCharacter* fighter)
+bool APlayerCharacter::IsCameraLockedOnEnemy() const
 {
-	return fighter && (fighter->GetTeamId() != TeamId);
+	return LockOnCamera && LockOnCamera->IsLockedOnEnemy();
 }
 
-int  APlayerCharacter::GetTeamId()
+bool APlayerCharacter::IsCameraLockedOnCharacterBack() const
 {
-	return (TeamId);
-}
-void APlayerCharacter::SetTeamId(int teamId)
-{
-	TeamId = teamId;
+	return LockOnCamera && LockOnCamera->IsLockedOnBack();
 }
 
-void APlayerCharacter::RefreshLockOnCandidates()
+AActor* APlayerCharacter::GetLockedOnActor() const
 {
-	lockOnCandidates.Empty();
+	return LockOnCamera ? LockOnCamera->GetLockedOnActor() : nullptr;
+}
 
-	UWorld* World = GetWorld();
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!World || !PC) return;
-
-	// --- Setup: view and viewport ---
-	const FVector MyLoc = GetActorLocation();
-	UCameraComponent* Cam = GetFollowCamera();
-	const FVector ViewOrigin = Cam ? Cam->GetComponentLocation() : MyLoc;
-	const FVector ViewDirection = GetControlRotation().Vector();
-
-	FVector2D ViewportSize(1.f, 1.f);
-	if (GEngine && GEngine->GameViewport)
+void APlayerCharacter::HandleLockOnEnemyChanged(bool bLockedOnEnemy, AActor* LockedActor)
+{
+	APlayerController* PlayerController = Cast<APlayerController>(Controller);
+	if (!PlayerController || !FightingMappingContext)
 	{
-		GEngine->GameViewport->GetViewportSize(ViewportSize);
-		ViewportSize.X = FMath::Max(1.f, ViewportSize.X);
-		ViewportSize.Y = FMath::Max(1.f, ViewportSize.Y);
+		return;
 	}
 
-	// --- Collect valid enemy candidates ---
-	TArray<AActor*> Found;
-	UGameplayStatics::GetAllActorsOfClass(World, APlayerCharacter::StaticClass(), Found);
-
-	for (AActor* Actor : Found)
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem)
 	{
-		if (Actor == this || !IsValid(Actor)) continue;
-
-		APlayerCharacter* Other = Cast<APlayerCharacter>(Actor);
-		if (!Other || !IsEnemy(Other)) continue;
-
-		const FVector OtherLoc = Other->GetActorLocation();
-		const float DistSq = (OtherLoc - MyLoc).SizeSquared();
-		if (DistSq > LockOnMaxDistance * LockOnMaxDistance) continue;
-
-		// In front of view (control rotation)
-		const FVector ToEnemy = (OtherLoc - ViewOrigin).GetSafeNormal();
-		if (FVector::DotProduct(ViewDirection, ToEnemy) <= 0.f) continue;
-
-		// On screen (pixel bounds)
-		FVector2D ScreenPos;
-		if (!PC->ProjectWorldLocationToScreen(OtherLoc, ScreenPos, true)) continue;
-		if (ScreenPos.X < 0.f || ScreenPos.X > ViewportSize.X || ScreenPos.Y < 0.f || ScreenPos.Y > ViewportSize.Y) continue;
-
-		// Not occluded
-		FCollisionQueryParams TraceParams;
-		TraceParams.AddIgnoredActor(this);
-		TraceParams.AddIgnoredActor(Other);
-		FHitResult Hit;
-		if (World->LineTraceSingleByChannel(Hit, ViewOrigin, OtherLoc + ToEnemy * 50.f, ECC_Visibility, TraceParams)) continue;
-
-		lockOnCandidates.Add(Actor);
+		return;
 	}
 
-	// Closest first
-	lockOnCandidates.Sort([MyLoc](const AActor& A, const AActor& B)
+	if (bLockedOnEnemy)
 	{
-		return FVector::DistSquared(MyLoc, A.GetActorLocation()) < FVector::DistSquared(MyLoc, B.GetActorLocation());
-	});
+		Subsystem->AddMappingContext(FightingMappingContext, 1);
+		UE_LOG(LogTemp, Log, TEXT("[LockOn] Enemy locked: %s"), *GetNameSafe(LockedActor));
+	}
+	else
+	{
+		Subsystem->RemoveMappingContext(FightingMappingContext);
+		UE_LOG(LogTemp, Log, TEXT("[LockOn] Enemy unlocked"));
+	}
 }
 
-void APlayerCharacter::UpdateCameraLockOn()
+void APlayerCharacter::HandleLockOnBackChanged(bool bLockedOnBack)
 {
-	// This function is called from Tick() but is deterministic for rollback netcode
-	// It only uses actor positions and rotations (which are part of rollback state)
-	// All calculations are pure functions of rollback state, ensuring determinism
-	
-	if (bIsCameraLockedOnEnemy && lockedOnActor && IsValid(lockedOnActor))
+	if (!bLockedOnBack)
 	{
-		// Calculate distance for camera height adjustment
-		const float Distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size();
-		
-		// Calculate look-at rotation
-		FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(
-			GetActorLocation(), 
-			lockedOnActor->GetActorLocation()
-		);
-		
-		// Adjust pitch based on distance (closer = higher pitch)
-		LookAtRotation.Pitch -= (targetingHeighOffset - Distance / 100.0f);
-		
-		// Apply rotation to controller
-		if (AController* MyController = GetController())
-		{
-			MyController->SetControlRotation(LookAtRotation);
-		}
+		RequestNeutralPosture();
 	}
 }
 
 void APlayerCharacter::LockUnlockCameraOnEnemy()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): LockUnlock"));
-	if (bIsCameraLockedOnEnemy)
+	if (LockOnCamera)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function unlocking camera from enemy"));
-		//UnlockCameraFromEnemy
-		bIsCameraLockedOnEnemy = false;
-		lockedOnActor = nullptr;
-		UnlockCharacterBackFromCamera();
-		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-		{
-			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-			{
-				Subsystem->RemoveMappingContext(FightingMappingContext);
-			}
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function locking camera on enemy"));
-		RefreshLockOnCandidates();
-		if (lockOnCandidates.Num() > 0)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function enemy found, locking camera on enemy"));
-			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
-			if (lockedOnActor)
-			{
-				bIsCameraLockedOnEnemy = true;
-				if (bIsRunning == false)
-				{
-					LockCameraOnCharacterBack();
-				}
-
-				if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-				{
-					if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-					{
-						Subsystem->AddMappingContext(FightingMappingContext, 1);
-					}
-				}
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function no enemy found, locking camera on character back"));
-		}
+		LockOnCamera->ToggleLockOnEnemy(/*bAllowOrientToBack=*/ !bIsRunning);
 	}
 }
 

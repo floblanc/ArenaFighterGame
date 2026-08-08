@@ -55,7 +55,7 @@ Dual-path migration flags (`bUseFighterCombatSim`, etc.) are **deleted** — pos
 0. **Written rule:** sim authority; GAS frozen for combat; splitscreen before online  
 1. **Sim skeleton:** state + fixed tick + posture in sim *(started in `Source/.../Combat/`)*  
 2. **Vertical slice:** light attack by posture → active frames → hit → block match → stun  
-3. **Decompose** `PlayerCharacter` (god-class)  
+3. **Decompose** `PlayerCharacter` (god-class) — Phase A lock-on done; see `Characters/PlayerCharacter_Decomposition.md`  
 4. **Local 1v1** splitscreen  
 5. **GGPO / rollback session** after local determinism (hash/replay) works  
 
@@ -79,8 +79,11 @@ That is normal fighter design, not “generic programming” in the C++ sense.
 
 ## Blueprint surface (keep small)
 
+**Checklist:** [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md)
+
 1. Create `LightAttackMoveSet` Data Asset  
 2. Assign on `FighterCombat` component  
 3. AnimBP: keep reading `ActualPosture` if already set up  
+4. Retune lock-on on `LockOnCamera` if you had custom values on the character  
 
 No big ability Blueprint graphs for core combat.
