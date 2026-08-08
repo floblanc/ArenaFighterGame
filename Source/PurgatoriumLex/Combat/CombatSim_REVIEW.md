@@ -44,9 +44,9 @@ Also:
 | Idea | Location |
 |------|----------|
 | Sim owns light-attack timing | `Combat/FighterCombatSim.cpp` → `TickLightAttack` / `StartLightAttack` / `AdvanceCurrentMove` |
-| Input diverted away from GAS | `Characters/PlayerCharacter.cpp` → `Input_AbilityInputTagPressed` (branch on `bRouteLightAttackToCombatSim`) |
-| Flags for dual path | `Characters/PlayerCharacter.h` → `bUseFighterCombatSim`, `bRouteLightAttackToCombatSim` |
-| Old GAS still present | `AbilitySystem/*`, `GrantAbilitiesWithInputTags`, `Build.cs` → `"GameplayAbilities"` |
+| Light attack never reaches ASC | `Characters/PlayerCharacter.cpp` → `Input_AbilityInputTagPressed` (`InputTag_LightAttack` → `PressLightAttack`) |
+| Posture / light attack always sim | No dual-path flags — legacy character posture Tick deleted |
+| Old GAS still present | `AbilitySystem/*`, `GrantAbilitiesWithInputTags`, `Build.cs` → `"GameplayAbilities"` (Kick etc. until migrated) |
 
 #### FAQ — Should GAS be completely removed?
 
@@ -54,7 +54,7 @@ Also:
 
 Recommended sequence (not all at once):
 
-1. **Now:** combat timing/posture/attacks go through the sim (this PR). GAS Kick becomes optional via flag.
+1. **Now (done in this PR):** posture + light-attack timing go through the sim only. Dual-path flags removed.
 2. **After hitboxes + local 1v1 feel good:** stop granting combat GAs; delete Kick/SelfDamage combat abilities from character defaults.
 3. **Later cleanup:** remove ASC from the fighter hot path if nothing else needs it; drop `GameplayAbilities` module dependency only when AttributeSet/HUD/etc. are replaced or unused.
 4. **Optional keep:** GAS (or a thin leftover) for *non-rewindable* meta (menus, unlocks) — not required.
@@ -180,7 +180,7 @@ That split is intentional: editor-facing shell vs rewindable core.
 |------|----------|
 | Posture fields in state | `CombatTypes.h` → `FFighterSimState::Posture` etc. |
 | Posture rules | `FighterCombatSim.cpp` → `TickPosture` / `RequestPostureChange` |
-| Character feeds direction only | `PlayerCharacter.cpp` → `ProcessPostureInput` (sim branch → `SetPostureDirection`) |
+| Character feeds direction only | `PlayerCharacter.cpp` → `ProcessPostureInput` → `SetPostureDirection` |
 | Mirror for AnimBP | `PlayerCharacter.cpp` → `SyncPresentationFromCombatSim` → `ActualPosture = …` |
 | Attack snapshot | `FighterCombatSim.cpp` → `StartLightAttack(State.Posture)` + `AttackSnapshotPosture` |
 
@@ -196,7 +196,7 @@ That split is intentional: editor-facing shell vs rewindable core.
 |------|----------|
 | Flag definitions | `CombatTypes.h` → `namespace FighterStateFlags` |
 | Set/clear on attack | `FighterCombatSim.cpp` → `StartLightAttack` / `EndCurrentMove` |
-| Transitional ASC mirror (not authority) | `PlayerCharacter.cpp` → `SyncPresentationFromCombatSim` (loose `State.PostureChanging`) |
+| Presentation sync | `PlayerCharacter.cpp` → `SyncPresentationFromCombatSim` (no ASC tag mirror) |
 
 ---
 
@@ -236,13 +236,13 @@ That is how most multi-character fighters scale: engine code is shared; **frame 
 
 ---
 
-### 8) Why keep legacy path behind flags?
+### 8) Why delete the dual-path flags in this PR?
 
-**Why:** A/B and safety while migrating.
+**Why:** Dual paths were migration scaffolding. Keeping them after the sim is the agreed authority reintroduces the exact mess this restart is meant to clear (two clocks, two staling fields, “which path am I on?”).
 
-**Where:** `PlayerCharacter.h` flags; `Tick` / `ProcessPostureInput` / `Input_AbilityInputTagPressed` branches.
+**Where deleted:** `bUseFighterCombatSim` / `bRouteLightAttackToCombatSim`; character `ProcessPendingPostureChange` / posture staling fields; ASC `State.PostureChanging` presentation poke.
 
-Temporary — delete legacy when trusted.
+Tune posture delays / move set on `UFighterCombatComponent` only.
 
 ---
 
@@ -270,8 +270,8 @@ Temporary — delete legacy when trusted.
 | 60 Hz | 30/64/120 | `SimTickRate` |
 | Tuning constants inside state | Config outside restore blob | `FFighterSimState` posture penalty fields |
 | Soft montage on DataAsset | Presentation picks anim by move id only | `FLightAttackMoveDef::Montage` |
-| Defaults route light attack to sim | Default off until DA assigned | `bRouteLightAttackToCombatSim` |
 | Keep GAS modules for now | Rip ASC immediately | `PurgatoriumLex.Build.cs`, `AbilitySystem/` |
+| Config tunables still inside state blob | Move delays/penalties to config-only | `ApplyPostureConfig` / `FFighterSimState` |
 
 ---
 

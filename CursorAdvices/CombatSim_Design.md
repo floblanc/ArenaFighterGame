@@ -55,15 +55,16 @@ Move data is in **frames**. Variable actor `Tick` deltas would make “8 startup
 
 ---
 
-## PlayerCharacter flags (temporary)
+## Character ↔ sim contract
 
-| Flag | Meaning |
-|------|---------|
-| `bUseFighterCombatSim` | Posture authority = sim; mirror `ActualPosture` |
-| `bRouteLightAttackToCombatSim` | Light attack → sim, not GAS |
-| `bAutoPlaySimAttackMontage` | Play montage from move set if set |
+| Piece | Role |
+|-------|------|
+| `UFighterCombatComponent` | Owns sim, fixed ticks, posture delay / move-set config |
+| `ActualPosture` | Presentation mirror for AnimBP (`VisibleAnywhere` / read-only) |
+| `bAutoPlaySimAttackMontage` | Optional: play montage from move set on attack start |
+| Light attack input | Always → `PressLightAttack()` (not ASC) |
 
-Legacy posture path kept behind flags for A/B — delete when trusted.
+No dual-path flags: posture + light attack are sim-only.
 
 ---
 

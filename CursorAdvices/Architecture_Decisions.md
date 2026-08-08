@@ -35,7 +35,7 @@ Old `bIsAttacking` / `bIsGuarding` on the character were fast prototypes.
 
 **Direction:** named combat conditions in **sim state** (bitflags / future small tag set **inside** `FFighterSimState`), not parallel bools and not ASC loose tags as authority.
 
-ASC tags may still appear as transitional mirrors — not truth.
+Dual-path migration flags (`bUseFighterCombatSim`, etc.) are **deleted** — posture + light attack are sim-only.
 
 ---
 

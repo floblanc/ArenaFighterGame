@@ -19,6 +19,13 @@ void FFighterCombatSim::SetMoveSet(const ULightAttackMoveSet* InMoveSet)
 	MoveSet = InMoveSet;
 }
 
+void FFighterCombatSim::ApplyPostureConfig(int32 BaseDelayFrames, float PenaltyPerChange, float MaxPenalty)
+{
+	State.PostureBaseFramesDelay = BaseDelayFrames;
+	State.PosturePenaltyPerChange = PenaltyPerChange;
+	State.PostureMaxPenalty = MaxPenalty;
+}
+
 bool FFighterCombatSim::TickFrame(const FFighterFrameInput& Input)
 {
 	const EPosture PostureBefore = State.Posture;

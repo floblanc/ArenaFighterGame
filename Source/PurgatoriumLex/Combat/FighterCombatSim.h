@@ -35,7 +35,6 @@ public:
 	void SetMoveSet(const ULightAttackMoveSet* InMoveSet);
 
 	const FFighterSimState& GetState() const { return State; }
-	FFighterSimState& GetStateMutable() { return State; }
 
 	/**
 	 * Advance exactly one sim frame.
@@ -45,6 +44,9 @@ public:
 
 	/** Debug aid for future desync hunting — not a networking protocol. */
 	uint32 ComputeStateHash() const;
+
+	/** Push posture tunables into state (component config → sim). Not a gameplay mutation path. */
+	void ApplyPostureConfig(int32 BaseDelayFrames, float PenaltyPerChange, float MaxPenalty);
 
 private:
 	void TickPosture(const FFighterFrameInput& Input);

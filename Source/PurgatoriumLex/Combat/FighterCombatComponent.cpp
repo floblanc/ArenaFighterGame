@@ -29,10 +29,7 @@ void UFighterCombatComponent::BeginPlay()
 
 void UFighterCombatComponent::ApplyConfigToSim()
 {
-	FFighterSimState& S = Sim.GetStateMutable();
-	S.PostureBaseFramesDelay = PostureBaseFramesDelay;
-	S.PosturePenaltyPerChange = PosturePenaltyPerChange;
-	S.PostureMaxPenalty = PostureMaxPenalty;
+	Sim.ApplyPostureConfig(PostureBaseFramesDelay, PosturePenaltyPerChange, PostureMaxPenalty);
 	Sim.SetMoveSet(LightAttackMoveSet);
 }
 

@@ -130,34 +130,13 @@ public:
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
 
 	/**
-	 * Fixed-tick combat sim bridge (posture + light attack timing).
-	 * WHY a component: keeps rules out of this god-class; see Combat/CombatSim_REVIEW.md
-	 * for architecture (sim authority vs GAS vs AnimBP).
+	 * Fixed-tick combat sim (posture + light attack). Single combat authority for netcode basics.
+	 * Tune delays / move set on this component — not duplicated on the character.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat Sim")
 	TObjectPtr<UFighterCombatComponent> FighterCombat;
 
-	/**
-	 * WHY this flag exists (temporary dual path):
-	 *   Migration safety — compare old Tick posture vs sim without bricking PIE.
-	 *   Delete legacy RequestPostureChange path once you trust the sim.
-	 * When true: sim is posture authority; ActualPosture is a presentation mirror.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
-	bool bUseFighterCombatSim = true;
-
-	/**
-	 * WHY separate from bUseFighterCombatSim:
-	 *   Lets you keep sim posture (AnimBP) while still testing GA_Kick via GAS.
-	 * When both true: LightAttack input never calls ASC for that tag.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
-	bool bRouteLightAttackToCombatSim = true;
-
-	/**
-	 * WHY optional auto-play: presentation must be swappable (BP VFX, different mesh)
-	 * without changing sim rules. Off = listen to OnLightAttackStarted yourself.
-	 */
+	/** If true, play montage from LightAttackMoveSet when sim starts an attack. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
 	bool bAutoPlaySimAttackMontage = true;
 
@@ -381,31 +360,14 @@ protected:
 	// ========================================================================
 	
 	/**
-	 * Posture seen by AnimBP / Blueprints.
-	 * WHY still on the character: zero AnimBP migration — your existing blend reads this.
-	 * WHY not authority when sim is on: CombatSim_REVIEW.md ("sim writes, mesh reads").
-	 * Writing this from Blueprint while bUseFighterCombatSim=true will be overwritten.
+	 * Presentation mirror of sim posture for AnimBP (read-only in practice).
+	 * Authority: FighterCombat sim. Do not write this from Blueprint — it is overwritten each tick.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat Sim|Presentation")
 	EPosture ActualPosture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	bool bIsPostureActionActive;
-
-	/** Base delay in frames before posture change is applied (frame-based for rollback compatibility). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
-	int32 PostureBaseFramesDelay = 3;
-
-	/** Bonus delay in frames added to base delay (can be modified at runtime, e.g. from abilities/status effects). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
-	int32 PostureBonusFramesDelay = 0;
-
-	/** Pending posture change: target posture and frame when change was requested. */
-	EPosture PendingPosture = EPosture::E_Neutral;
-	int32 PostureChangeRequestFrame = -1;
-
-	void HandlePostureInputY(float Value);
-	void HandlePostureInputX(float Value);
 
 	// ========================================================================
 	// ROLL STALING SYSTEM
@@ -433,29 +395,6 @@ protected:
 	/** Number of frames without dodging before penalty resets (frame-based for rollback compatibility). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "1"))
 	int32 RollResetFrames = 60; // ~1 second at 60fps
-
-	// ========================================================================
-	// POSTURE STALING SYSTEM
-	// ========================================================================
-	
-	/** Constant penalty per posture change. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
-	float PosturePenalty = 0.08f;
-
-	/** Maximum accumulated penalty (caps at this value). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
-	float PostureMaxPenaltyValue = 0.5f;
-
-	/** Current accumulated posture staling penalty (0.0 = fresh, increases with each posture change). */
-	UPROPERTY(BlueprintReadOnly, Category = "Posture Staling")
-	float PostureStalePenalty = 0.0f;
-
-	/** Frame number when last posture change was performed (for deterministic reset calculation). */
-	int32 LastPostureChangeFrame = -1;
-
-	/** Number of frames without posture changes before penalty resets (frame-based for rollback compatibility). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "1"))
-	int32 PostureResetFrames = 60; // ~1 second at 60fps
 
 	// ========================================================================
 	// COMBAT & ACTIONS
@@ -633,13 +572,10 @@ private:
 	// PRIVATE POSTURE HELPERS
 	// ========================================================================
 	
-	/** Request a posture change with frame delay. Returns true if change was queued, false if one is already pending. */
+	/** Forward posture request to the combat sim (presentation still reads ActualPosture). */
 	bool RequestPostureChange(EPosture TargetPosture);
-	
-	/** Process pending posture change in Tick - applies change when delay elapses. */
-	void ProcessPendingPostureChange();
 
-	/** Sync ActualPosture / attack bools from FighterCombat when sim is enabled. */
+	/** Sync ActualPosture / attack bools from FighterCombat. */
 	void SyncPresentationFromCombatSim();
 
 	UFUNCTION()

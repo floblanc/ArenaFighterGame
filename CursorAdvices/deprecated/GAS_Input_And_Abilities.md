@@ -86,7 +86,7 @@ Guard **release** was special-cased to dispatch `InputTag.Parry` (design idea wo
 - InputConfig tag must match grant mapping / ability expectation  
 - Ability must be granted (authority)  
 - Cost / cooldown / `CanActivateAbility` may block  
-- With `bRouteLightAttackToCombatSim == true`, light attack **never reaches** ASC  
+- Light attack is sim-owned now — it **never reaches** ASC (`InputTag_LightAttack` → `FighterCombat->PressLightAttack`)  
 
 ---
 

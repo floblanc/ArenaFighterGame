@@ -21,11 +21,11 @@ Anti-spam (future): [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_
 | Role | Owner |
 |------|--------|
 | True current posture | `FFighterSimState::Posture` (sim) |
-| Mirror for AnimBP | `APlayerCharacter::ActualPosture` (synced each tick when sim enabled) |
+| Mirror for AnimBP | `APlayerCharacter::ActualPosture` (synced each tick from sim) |
 | Swing direction for current move | `AttackSnapshotPosture` (frozen at light-attack start) |
 
 **Rule:** sim writes → character mirrors → AnimBP reads.  
-Do not treat Blueprint writes to `ActualPosture` as authority while `bUseFighterCombatSim` is true (overwrite next sync).
+Do not write `ActualPosture` from Blueprint — it is overwritten next sync.
 
 ---
 
