@@ -63,7 +63,7 @@ uint32 FFighterCombatSim::ComputeStateHash() const
 	Mix(static_cast<uint32>(State.MovePhase));
 	Mix(static_cast<uint32>(State.AttackSnapshotPosture));
 	Mix(static_cast<uint32>(State.MoveLocalFrame));
-	Mix(State.StateFlags);
+	Mix(static_cast<uint32>(State.StateFlags));
 	Mix(static_cast<uint32>(State.Health));
 	return Hash;
 }

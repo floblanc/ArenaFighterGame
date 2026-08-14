@@ -217,12 +217,17 @@ struct PURGATORIUMLEX_API FFighterSimState
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
 	int32 HitstunRemaining = 0;
 
+	/**
+	 * Packed combat conditions (see FighterStateFlags).
+	 * WHY int32 not uint32: UHT/BlueprintType structs cannot expose uint32 (UE 5.8).
+	 * Bits used today fit in signed 32; C++ helpers still take unsigned masks.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
-	uint32 StateFlags = FighterStateFlags::None;
+	int32 StateFlags = static_cast<int32>(FighterStateFlags::None);
 
-	bool HasFlag(uint32 Flag) const { return (StateFlags & Flag) != 0; }
-	void SetFlag(uint32 Flag) { StateFlags |= Flag; }
-	void ClearFlag(uint32 Flag) { StateFlags &= ~Flag; }
+	bool HasFlag(uint32 Flag) const { return (static_cast<uint32>(StateFlags) & Flag) != 0; }
+	void SetFlag(uint32 Flag) { StateFlags = static_cast<int32>(static_cast<uint32>(StateFlags) | Flag); }
+	void ClearFlag(uint32 Flag) { StateFlags = static_cast<int32>(static_cast<uint32>(StateFlags) & ~Flag); }
 };
 
 // ---------------------------------------------------------------------------

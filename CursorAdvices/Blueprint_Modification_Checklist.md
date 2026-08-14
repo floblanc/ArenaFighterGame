@@ -9,12 +9,13 @@ Agents cannot author `.uasset` for you.
 
 ## 0. Compile first
 
+Engine pin is **UE 5.8** (`EngineAssociation` + Target `V7` / `Unreal5_8`). Open/generate with **Unreal Engine 5.8**, not 5.7.
+
 1. Close PIE / hot-reload carefully if needed  
-2. Build C++ (`PurgatoriumLex`) so UHT sees:
-   - `UFighterCombatComponent`, `ULightAttackMoveSet`
-   - `ULockOnCameraComponent`
-   - `EPosture` in `CombatTypes` (not only on the old character header)  
-3. Open the project; fix any **Blueprint compile errors** from removed properties (see §4)
+2. Right-click `.uproject` → **Switch Unreal Engine version…** → **5.8** (if the launcher still shows 5.7)  
+3. **Generate Visual Studio / project files**, then build `PurgatoriumLexEditor`  
+4. First open may ask to rebuild / convert assets — accept for this project copy  
+5. Open the project; fix any **Blueprint compile errors** from removed properties (see §4)
 
 Primary pawn BP (typical):  
 `Content/PurgatoriumLex/Characters/Player/BP_PlayerCharacterForLyraAnimation`  
