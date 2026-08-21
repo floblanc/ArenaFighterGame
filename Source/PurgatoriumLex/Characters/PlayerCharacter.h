@@ -467,15 +467,15 @@ protected:
 	// HEALTH & CHARACTER INFO
 	// ========================================================================
 	
-	/** The amount of health the player currently has */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	/** Deprecated: use AttributeSet Health. Kept so old BPs do not hard-fail on missing property. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health", meta = (DeprecatedProperty, DeprecationMessage = "Use AttributeSet Health / HUD bindings instead of playerHealth."))
 	float playerHealth;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int TeamId;
+	int32 TeamId = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int PlayerNumber;
+	int32 PlayerNumber = 0;
 
 	// ========================================================================
 	// PROTECTED HELPER FUNCTIONS

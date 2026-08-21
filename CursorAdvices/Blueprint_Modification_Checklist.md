@@ -11,6 +11,17 @@ Agents cannot author `.uasset` for you.
 
 Engine pin is **UE 5.8** (`EngineAssociation` + Target `V7` / `Unreal5_8`). Open/generate with **Unreal Engine 5.8**, not 5.7.
 
+**Pre-Blueprint C++ hygiene (already applied in Source):**
+- `StateFlags` is `int32` (UHT rejects `uint32` on `BlueprintType` structs)
+- `GetLockOnCandidates` returns `TArray` by value (not `const TArray&`)
+- `FFighterFrameInput` is **not** BlueprintType (C++ latch only)
+- `FFighterSimState` fields are `BlueprintReadOnly` snapshots (no `EditAnywhere`)
+- `playerHealth` marked deprecated → use AttributeSet Health
+- `FighterCombat` exposes **Bonus Delay** + **Reset Frames** (not only base/penalty)
+- Character ticks **after** `FighterCombat` so `ActualPosture` matches this sim frame
+- Missing MoveSet posture rows log a warning (fallback timings still apply)
+- Dual health: HUD = AttributeSet; `FFighterSimState.Health` is placeholder until hitboxes
+
 1. Close PIE / hot-reload carefully if needed  
 2. Right-click `.uproject` → **Switch Unreal Engine version…** → **5.8** (if the launcher still shows 5.7)  
 3. **Generate Visual Studio / project files**, then build `PurgatoriumLexEditor`  
@@ -89,8 +100,8 @@ If the character BP or child graphs show **unknown / missing pins**, clear or re
 |------------------------|----------------------------|
 | `bUseFighterCombatSim` | Deleted — sim is always on; remove BP branches |
 | `bRouteLightAttackToCombatSim` | Deleted — light attack always → sim |
-| `PostureBaseFramesDelay`, `PostureBonusFramesDelay` | Tune **`FighterCombat` → Posture Base Frames Delay** (bonus delay not exposed yet) |
-| `PosturePenalty`, `PostureMaxPenaltyValue`, `PostureStalePenalty`, `PostureResetFrames` | Tune **`FighterCombat` → Posture Penalty Per Change / Max Penalty**; live penalty is sim-only |
+| `PostureBaseFramesDelay`, `PostureBonusFramesDelay` | Tune **`FighterCombat` → Posture Base / Bonus Frames Delay** |
+| `PosturePenalty`, `PostureMaxPenaltyValue`, `PostureStalePenalty`, `PostureResetFrames` | Tune **`FighterCombat` → Penalty / Max Penalty / Reset Frames**; live stale value is sim-only |
 | Character posture pending / staling Tick fields | Gone — no BP action |
 | Lock-on fields listed in §3 | Move to `LockOnCamera` / getters |
 
@@ -114,8 +125,8 @@ Also: if you had Event Graph logic that **called ASC for LightAttack**, remove i
 On **`FighterCombat`** (not the old Character Movement category):
 
 - **Sim Tick Rate** (default 60)  
-- **Posture Base Frames Delay**  
-- **Posture Penalty Per Change** / **Posture Max Penalty**
+- **Posture Base Frames Delay** / **Posture Bonus Frames Delay**  
+- **Posture Penalty Per Change** / **Posture Max Penalty** / **Posture Reset Frames**
 
 ---
 

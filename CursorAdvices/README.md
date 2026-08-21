@@ -16,6 +16,7 @@ These are **not** engine docs and not always in sync with code. Prefer code + th
 | [Posture_System.md](Posture_System.md) | Posture as sim authority + always-on visual + attack snapshot |
 | [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md) | Future anti-spam: slow-mo / exhaustion (not implemented) |
 | [UE5_Basics_UObject_And_Naming.md](UE5_Basics_UObject_And_Naming.md) | `U`/`A`/`F` naming, what UObject is and why |
+| [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md) | **Official UE 5.8 docs index** — Epic is authority for engine APIs |
 | [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md) | **Editor steps you must apply** after C++ combat/lock-on changes |
 
 **Implementation review in Source (authoritative for the sim PR):**  
@@ -60,6 +61,7 @@ Cleaned and merged under **[`deprecated/`](deprecated/README.md)** — one subje
 ## House rules for this folder
 
 1. **One clear subject per file.**
-2. If advice conflicts with `Source/PurgatoriumLex/Combat/`, **code wins**.
-3. Mark thrown approaches **deprecated**, don’t delete explanations you still want.
-4. Deprecated material lives under `deprecated/` with its own README.
+2. If advice conflicts with `Source/PurgatoriumLex/Combat/`, **code wins** for architecture.
+3. If advice conflicts with **Epic UE 5.8 documentation / API** on engine facts, **Epic wins** — update our notes. Index: [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md).
+4. Mark thrown approaches **deprecated**, don’t delete explanations you still want.
+5. Deprecated material lives under `deprecated/` with its own README.

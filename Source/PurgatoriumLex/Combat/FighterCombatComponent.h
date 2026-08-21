@@ -64,11 +64,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Sim|Posture", meta = (ClampMin = "0"))
 	int32 PostureBaseFramesDelay = 3;
 
+	/** Extra frames added to base delay (staling/intangibility feel). Was in sim state only — now editor-tunable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Sim|Posture", meta = (ClampMin = "0"))
+	int32 PostureBonusFramesDelay = 0;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Sim|Posture", meta = (ClampMin = "0.0"))
 	float PosturePenaltyPerChange = 0.08f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Sim|Posture", meta = (ClampMin = "0.0"))
 	float PostureMaxPenalty = 0.5f;
+
+	/** Sim frames without a posture change before stale penalty resets. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat Sim|Posture", meta = (ClampMin = "1"))
+	int32 PostureResetFrames = 60;
 
 	UPROPERTY(BlueprintAssignable, Category = "Combat Sim|Events")
 	FOnFighterPostureChanged OnPostureChanged;

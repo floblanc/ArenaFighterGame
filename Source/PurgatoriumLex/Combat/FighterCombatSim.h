@@ -46,7 +46,12 @@ public:
 	uint32 ComputeStateHash() const;
 
 	/** Push posture tunables into state (component config → sim). Not a gameplay mutation path. */
-	void ApplyPostureConfig(int32 BaseDelayFrames, float PenaltyPerChange, float MaxPenalty);
+	void ApplyPostureConfig(
+		int32 BaseDelayFrames,
+		int32 BonusDelayFrames,
+		float PenaltyPerChange,
+		float MaxPenalty,
+		int32 ResetFrames);
 
 private:
 	void TickPosture(const FFighterFrameInput& Input);

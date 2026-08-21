@@ -34,14 +34,14 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", Meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", meta = (ClampMin = "0.0"))
 	float TargetingHeightOffset = 30.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", Meta = (ClampMin = "100", ClampMax = "5000"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", meta = (ClampMin = "100", ClampMax = "5000"))
 	float LockOnMaxDistance = 2000.f;
 
 	/** Reserved / tune later (candidate filter currently uses screen projection). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", Meta = (ClampMin = "5", ClampMax = "90"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lock On", meta = (ClampMin = "5", ClampMax = "90"))
 	float LockOnFOVDegrees = 45.f;
 
 	UPROPERTY(BlueprintAssignable, Category = "Lock On|Events")
@@ -59,8 +59,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Lock On")
 	AActor* GetLockedOnActor() const { return LockedOnActor; }
 
+	/** Copy of last refresh results (BP-safe; do not return const TArray& from UFUNCTION). */
 	UFUNCTION(BlueprintPure, Category = "Lock On")
-	const TArray<AActor*>& GetLockOnCandidates() const { return LockOnCandidates; }
+	TArray<AActor*> GetLockOnCandidates() const { return LockOnCandidates; }
 
 	/**
 	 * Toggle enemy lock-on.
@@ -90,7 +91,7 @@ private:
 	bool bIsLockedOnBack = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lock On", meta = (AllowPrivateAccess = "true"))
-	AActor* LockedOnActor = nullptr;
+	TObjectPtr<AActor> LockedOnActor;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lock On", meta = (AllowPrivateAccess = "true"))
 	TArray<AActor*> LockOnCandidates;

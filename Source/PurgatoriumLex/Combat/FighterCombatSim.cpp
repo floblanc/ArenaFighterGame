@@ -19,11 +19,18 @@ void FFighterCombatSim::SetMoveSet(const ULightAttackMoveSet* InMoveSet)
 	MoveSet = InMoveSet;
 }
 
-void FFighterCombatSim::ApplyPostureConfig(int32 BaseDelayFrames, float PenaltyPerChange, float MaxPenalty)
+void FFighterCombatSim::ApplyPostureConfig(
+	int32 BaseDelayFrames,
+	int32 BonusDelayFrames,
+	float PenaltyPerChange,
+	float MaxPenalty,
+	int32 ResetFrames)
 {
 	State.PostureBaseFramesDelay = BaseDelayFrames;
+	State.PostureBonusFramesDelay = BonusDelayFrames;
 	State.PosturePenaltyPerChange = PenaltyPerChange;
 	State.PostureMaxPenalty = MaxPenalty;
+	State.PostureResetFrames = ResetFrames;
 }
 
 bool FFighterCombatSim::TickFrame(const FFighterFrameInput& Input)
@@ -64,7 +71,11 @@ uint32 FFighterCombatSim::ComputeStateHash() const
 	Mix(static_cast<uint32>(State.AttackSnapshotPosture));
 	Mix(static_cast<uint32>(State.MoveLocalFrame));
 	Mix(static_cast<uint32>(State.StateFlags));
-	Mix(static_cast<uint32>(State.Health));
+	{
+		uint32 HealthBits = 0;
+		FMemory::Memcpy(&HealthBits, &State.Health, sizeof(HealthBits));
+		Mix(HealthBits);
+	}
 	return Hash;
 }
 

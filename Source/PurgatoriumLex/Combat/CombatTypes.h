@@ -92,8 +92,13 @@ namespace FighterStateFlags
 //   - Sim stays free of PlayerController / World time.
 // Sticky fields (directions, allow flags) vs edges (pressed this frame) are intentional:
 //   edges must clear after one sim tick so resim does not re-trigger forever.
+//
+// WHY NOT BlueprintType (UE 5.8):
+//   Intent is latched in C++ only. Exposing a writable BlueprintType input struct
+//   invites Event Graph "authority" that bypasses the sim. UPROPERTY() still marks
+//   fields for UHT/serialization without Make/Break in BP.
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct PURGATORIUMLEX_API FFighterFrameInput
 {
 	GENERATED_BODY()
@@ -102,7 +107,7 @@ struct PURGATORIUMLEX_API FFighterFrameInput
 	 * Locomotion intent as a 2D direction (WASD, left stick, etc. — device-agnostic).
 	 * Reserved: movement-in-sim later. Unused by rules today (CMC still owns locomotion).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	FVector2D MoveDirection = FVector2D::ZeroVector;
 
 	/**
@@ -112,23 +117,23 @@ struct PURGATORIUMLEX_API FFighterFrameInput
 	 *   posture input or movement (passive lock-on). Sim only needs the resulting
 	 *   vector + policy flags — keeps angle math in one place.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	FVector2D PostureDirection = FVector2D::ZeroVector;
 
 	/** Dedicated posture held => overwrites movement-based posture (your design). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	bool bPostureOverrideActive = false;
 
 	/** Lock-on "camera on back" allows movement direction to drive posture. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	bool bAllowMovementPosture = false;
 
 	/** Edge: pressed this frame (not held). WHY edge: fighters buffer presses, not "button down" spam. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	bool bLightAttackPressed = false;
 
 	/** Edge: return to neutral (move released / posture released with your existing rules). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UPROPERTY()
 	bool bRequestNeutralPosture = false;
 };
 
@@ -149,42 +154,42 @@ struct PURGATORIUMLEX_API FFighterSimState
 	GENERATED_BODY()
 
 	/** Monotonic sim frame. WHY: buffer expiry, posture delay, move timing all key off this — not FPlatformTime. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sim")
+	UPROPERTY(BlueprintReadOnly, Category = "Sim")
 	int32 Frame = 0;
 
 	/** Authority posture. WHY: continuous visual tilt AND combat queries share one value. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	EPosture Posture = EPosture::E_Neutral;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	EPosture PendingPosture = EPosture::E_Neutral;
 
 	/** -1 = none. WHY frame stamp (not a float timer): same delay on every machine/resim. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	int32 PostureChangeRequestFrame = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	int32 PostureBaseFramesDelay = 3;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	int32 PostureBonusFramesDelay = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	float PostureStalePenalty = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	float PosturePenaltyPerChange = 0.08f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	float PostureMaxPenalty = 0.5f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	int32 LastPostureChangeFrame = -1;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Posture")
+	UPROPERTY(BlueprintReadOnly, Category = "Posture")
 	int32 PostureResetFrames = 60;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	ECombatMovePhase MovePhase = ECombatMovePhase::None;
 
 	/**
@@ -192,29 +197,29 @@ struct PURGATORIUMLEX_API FFighterSimState
 	 * WHY snapshot: continuous posture still updates for idle/walk visuals and next actions,
 	 * but the current swing's direction/hit rules must not drift mid-animation.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	EPosture AttackSnapshotPosture = EPosture::E_Neutral;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	int32 MoveLocalFrame = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	int32 StartupFrames = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	int32 ActiveFrames = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	int32 RecoveryFrames = 0;
 
 	/** Copied from move data at start; applied when hitboxes exist. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attack")
+	UPROPERTY(BlueprintReadOnly, Category = "Attack")
 	float PendingAttackDamage = 0.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	float Health = 100.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	int32 HitstunRemaining = 0;
 
 	/**
@@ -222,7 +227,7 @@ struct PURGATORIUMLEX_API FFighterSimState
 	 * WHY int32 not uint32: UHT/BlueprintType structs cannot expose uint32 (UE 5.8).
 	 * Bits used today fit in signed 32; C++ helpers still take unsigned masks.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Combat")
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	int32 StateFlags = static_cast<int32>(FighterStateFlags::None);
 
 	bool HasFlag(uint32 Flag) const { return (static_cast<uint32>(StateFlags) & Flag) != 0; }

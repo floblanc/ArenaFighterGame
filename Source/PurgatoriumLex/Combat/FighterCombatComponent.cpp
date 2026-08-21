@@ -17,8 +17,11 @@ void UFighterCombatComponent::BeginPlay()
 	FFighterSimState Initial;
 	Initial.Posture = EPosture::E_Neutral;
 	Initial.PostureBaseFramesDelay = PostureBaseFramesDelay;
+	Initial.PostureBonusFramesDelay = PostureBonusFramesDelay;
 	Initial.PosturePenaltyPerChange = PosturePenaltyPerChange;
 	Initial.PostureMaxPenalty = PostureMaxPenalty;
+	Initial.PostureResetFrames = PostureResetFrames;
+	// Placeholder until hitboxes write sim Health. HUD/GAS still use AttributeSet Health.
 	Initial.Health = 100.f;
 	Sim.Reset(Initial);
 	Sim.SetMoveSet(LightAttackMoveSet);
@@ -29,7 +32,12 @@ void UFighterCombatComponent::BeginPlay()
 
 void UFighterCombatComponent::ApplyConfigToSim()
 {
-	Sim.ApplyPostureConfig(PostureBaseFramesDelay, PosturePenaltyPerChange, PostureMaxPenalty);
+	Sim.ApplyPostureConfig(
+		PostureBaseFramesDelay,
+		PostureBonusFramesDelay,
+		PosturePenaltyPerChange,
+		PostureMaxPenalty,
+		PostureResetFrames);
 	Sim.SetMoveSet(LightAttackMoveSet);
 }
 

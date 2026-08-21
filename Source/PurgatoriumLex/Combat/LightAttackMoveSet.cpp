@@ -13,6 +13,10 @@ FLightAttackMoveDef ULightAttackMoveSet::FindMove(EPosture Posture) const
 	}
 
 	// Fallback so missing data still produces a complete move (easy to spot in logs).
+	UE_LOG(LogTemp, Warning,
+		TEXT("[LightAttackMoveSet] No row for posture %d on '%s' — using fallback timings. Add a Moves entry before relying on feel."),
+		(int32)Posture, *GetName());
+
 	FLightAttackMoveDef Fallback;
 	Fallback.Posture = Posture;
 	Fallback.StartupFrames = 8;

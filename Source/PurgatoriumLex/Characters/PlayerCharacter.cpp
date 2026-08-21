@@ -209,6 +209,8 @@ void APlayerCharacter::BeginPlay()
 
 	if (FighterCombat)
 	{
+		// Presentation sync in Tick must see this frame's sim result (UE 5.8 component tick order).
+		AddTickPrerequisiteComponent(FighterCombat);
 		FighterCombat->OnLightAttackStarted.AddDynamic(this, &APlayerCharacter::HandleSimLightAttackStarted);
 		FighterCombat->ApplyConfigToSim();
 	}
