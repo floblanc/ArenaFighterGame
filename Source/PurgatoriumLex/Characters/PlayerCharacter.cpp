@@ -10,6 +10,9 @@
 #include "Input/PurgatoriumLexInputComponent.h"
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
+#include "Combat/FighterCombatComponent.h"
+#include "Combat/LightAttackMoveSet.h"
+#include "Characters/LockOnCameraComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -21,12 +24,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "InputActionValue.h"
-#include "Kismet/KismetMathLibrary.h"
-#include "Kismet/GameplayStatics.h"
-#include "Engine/World.h"
-#include "Engine/Engine.h"
-#include "Engine/GameViewportClient.h"
-#include "CollisionQueryParams.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
 
 // #include "PurgatoriumLexMacros.h"
 
@@ -53,15 +52,6 @@ APlayerCharacter::APlayerCharacter()
 	// Posture defaults (avoid calling RequestNeutralPosture() here because it relies on initialized state)
 	ActualPosture = EPosture::E_Neutral;
 	bIsPostureActionActive = false;
-	bIsCameraLockedOnCharacterBack = false;
-	bIsCameraLockedOnEnemy = false;
-	
-	lockedOnActor = nullptr;
-	targetingHeighOffset = 30.0f; //Can be prototyped to MAX_CAMERA_HEIGHT au corps à corps -> et peut être créer un MIN_CAMERA_HEIGHT pour les longue distances et modifier le calcul (mettre en fonction) pour assurer le comportement (fonction pour camera a mettre dans un autre fichier?) -> valeurs parametrables par le joueur???.
-
-	// Lock-on: defaults here; tune in Blueprint or replace with lobby/config later.
-	LockOnMaxDistance = 2000.f;
-	LockOnFOVDegrees = 45.f;
 
 	playerHealth = 1.00f;
 	bAttackHasBeenUsed = false;
@@ -72,10 +62,6 @@ APlayerCharacter::APlayerCharacter()
 	ChargeAttackStartTime = 0.f;
 	MinChargeTime = 0.2f;
 	SimulationFrame = 0;
-	PostureBaseFramesDelay = 3;
-	PostureBonusFramesDelay = 0;
-	PendingPosture = EPosture::E_Neutral;
-	PostureChangeRequestFrame = -1;
 	
 	// Roll staling defaults
 	RollMinPenalty = 0.06f;
@@ -84,13 +70,6 @@ APlayerCharacter::APlayerCharacter()
 	RollStalePenalty = 0.0f;
 	LastDodgeFrame = -1;
 	RollResetFrames = 60; // ~1 second at 60fps
-	
-	// Posture staling defaults
-	PosturePenalty = 0.08f;
-	PostureMaxPenaltyValue = 0.5f;
-	PostureStalePenalty = 0.0f;
-	LastPostureChangeFrame = -1;
-	PostureResetFrames = 60; // ~1 second at 60fps
 
 	// Tech system defaults (SSBU-style)
 	TechWindowFrames = 11;
@@ -126,6 +105,13 @@ APlayerCharacter::APlayerCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+	// Fixed-tick combat sim (posture + light attack). Tunable on the component.
+	FighterCombat = CreateDefaultSubobject<UFighterCombatComponent>(TEXT("FighterCombat"));
+	bAutoPlaySimAttackMontage = true;
+
+	// Lock-on / camera-on-back (presentation). Tune distance / height on this component.
+	LockOnCamera = CreateDefaultSubobject<ULockOnCameraComponent>(TEXT("LockOnCamera"));
 
 	// set the player tag
 	Tags.Add(FName("Player"));
@@ -184,17 +170,6 @@ void APlayerCharacter::InitAbilitySystemComponent()
 	AbilitySystemComponent = CastChecked<UPurgatoriumLexAbilitySystemComponent>(PurgatoriumLexPlayerState->GetAbilitySystemComponent());
 	AbilitySystemComponent->InitAbilityActorInfo(PurgatoriumLexPlayerState, this);
 	AttributeSet = PurgatoriumLexPlayerState->GetAttributeSet();
-
-	// Ensure PostureChanging tag matches pending posture state
-	using namespace PurgatoriumLexGameplayTags;
-	if (PostureChangeRequestFrame >= 0)
-	{
-		AbilitySystemComponent->AddLooseGameplayTag(State_PostureChanging);
-	}
-	else
-	{
-		AbilitySystemComponent->RemoveLooseGameplayTag(State_PostureChanging);
-	}
 }
 
 void APlayerCharacter::InitHUD() const
@@ -214,11 +189,10 @@ void APlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Default bufferable tags if none set in Blueprint (LightAttack, Roll)
+	// Default bufferable tags if none set in Blueprint (Roll only — LightAttack is sim-owned)
 	using namespace PurgatoriumLexGameplayTags;
 	if (BufferableInputTags.Num() == 0)
 	{
-		BufferableInputTags.Add(InputTag_LightAttack);
 		BufferableInputTags.Add(InputTag_Roll);
 	}
 
@@ -232,6 +206,20 @@ void APlayerCharacter::BeginPlay()
 		SetTeamId(1); // Unpossessed = enemy team for lock-on
 	}
 	// ========== END TEMPORARY ==========
+
+	if (FighterCombat)
+	{
+		// Presentation sync in Tick must see this frame's sim result (UE 5.8 component tick order).
+		AddTickPrerequisiteComponent(FighterCombat);
+		FighterCombat->OnLightAttackStarted.AddDynamic(this, &APlayerCharacter::HandleSimLightAttackStarted);
+		FighterCombat->ApplyConfigToSim();
+	}
+
+	if (LockOnCamera)
+	{
+		LockOnCamera->OnLockOnEnemyChanged.AddDynamic(this, &APlayerCharacter::HandleLockOnEnemyChanged);
+		LockOnCamera->OnLockOnBackChanged.AddDynamic(this, &APlayerCharacter::HandleLockOnBackChanged);
+	}
 }
 
 // Called every frame
@@ -239,13 +227,15 @@ void APlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Input buffer: client-side feel improvement (not replicated)
+	// Input buffer: client-side feel for remaining GAS-era tags (e.g. Roll) — not combat authority
 	SimulationFrame++;
+
+	if (FighterCombat)
+	{
+		SyncPresentationFromCombatSim();
+	}
 	
-	// Process delayed posture changes (frame-based for rollback compatibility)
-	ProcessPendingPostureChange();
-	
-	// Process roll staling reset (reset penalty after RollResetFrames without dodging - frame-based for rollback compatibility)
+	// Process roll staling reset (reset penalty after RollResetFrames without dodging)
 	if (RollStalePenalty > 0.0f && LastDodgeFrame >= 0)
 	{
 		const int32 FramesSinceLastDodge = SimulationFrame - LastDodgeFrame;
@@ -255,19 +245,6 @@ void APlayerCharacter::Tick(float DeltaTime)
 			UE_LOG(LogTemp, Log, TEXT("[Roll Staling] Penalty reset (%d frames since last dodge, frame %d)"), FramesSinceLastDodge, SimulationFrame);
 			RollStalePenalty = 0.0f;
 			LastDodgeFrame = -1;
-		}
-	}
-	
-	// Process posture staling reset (reset penalty after PostureResetFrames without posture changes - frame-based for rollback compatibility)
-	if (PostureStalePenalty > 0.0f && LastPostureChangeFrame >= 0)
-	{
-		const int32 FramesSinceLastPostureChange = SimulationFrame - LastPostureChangeFrame;
-		
-		if (FramesSinceLastPostureChange >= PostureResetFrames)
-		{
-			UE_LOG(LogTemp, Log, TEXT("[Posture Staling] Penalty reset (%d frames since last posture change, frame %d)"), FramesSinceLastPostureChange, SimulationFrame);
-			PostureStalePenalty = 0.0f;
-			LastPostureChangeFrame = -1;
 		}
 	}
 	
@@ -315,13 +292,6 @@ void APlayerCharacter::Tick(float DeltaTime)
 			}
 		}
 	}
-
-	// Update camera lock-on deterministically
-	// This is called from Tick() but is still deterministic for rollback netcode because:
-	// - It only uses actor positions and rotations (part of rollback state)
-	// - All calculations are pure functions of rollback state
-	// - As long as inputs (actor positions) are deterministic, output (camera rotation) is deterministic
-	UpdateCameraLockOn();
 
 	// Update techable state (check if character should be able to tech)
 	UpdateTechableState();
@@ -428,7 +398,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 	bIsMoving = ((!(bIsInAttackAnimation)) || GetCharacterMovement()->IsFalling()) && !bIsCharging;
 
 	// Change Posture by default movement
-	if (bIsCameraLockedOnCharacterBack && bIsMoving && (bIsPostureActionActive == false))
+	if (IsCameraLockedOnCharacterBack() && bIsMoving && (bIsPostureActionActive == false))
 	{
 		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
@@ -439,7 +409,7 @@ void APlayerCharacter::Move(const FInputActionValue& Value)
 
 	if (Controller != nullptr && bIsMoving)
 	{
-		if (bIsCameraLockedOnEnemy)
+		if (IsCameraLockedOnEnemy())
 		{
 			// route the input
 			DoMoveAroundSomething(MovementVector.X, MovementVector.Y);
@@ -471,8 +441,15 @@ void APlayerCharacter::DoMoveAroundSomething(float Right, float Forward)
 	if (originalXStepSize != 0.0)
 	{
 		// Get the maximum physics substep delta time.
+		AActor* LockedActor = GetLockedOnActor();
+		if (!LockedActor)
+		{
+			AddMovementInput(ForwardDirection, Forward);
+			AddMovementInput(RightDirection, Right);
+			return;
+		}
 		
-		double distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
+		double distance = (LockedActor->GetActorLocation() - GetActorLocation()).Size(); // entre 70-100 et 1000-1500 environ -> 70 = collé, 100 = très proche
 		UE_LOG(LogTemp, Warning, TEXT("distance : %f"), distance);
 		UE_LOG(LogTemp, Warning, TEXT("MaxWalkSpeed : %f"), GetCharacterMovement()->MaxWalkSpeed);
 		UE_LOG(LogTemp, Warning, TEXT("Right: %f"), Right);
@@ -572,31 +549,13 @@ void APlayerCharacter::DoJumpEnd()
 	StopJumping();
 }
 
-void APlayerCharacter::UnlockCharacterBackFromCamera()
-{
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	
-	MoveComp->bOrientRotationToMovement = true;
-	MoveComp->bUseControllerDesiredRotation = false;
-
-	bIsCameraLockedOnCharacterBack = false;
-	RequestNeutralPosture();
-}
-
-void APlayerCharacter::LockCameraOnCharacterBack()
-{
-	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	
-	MoveComp->bOrientRotationToMovement = false;
-	MoveComp->bUseControllerDesiredRotation = true;
-
-	bIsCameraLockedOnCharacterBack = true;
-}
-
 void APlayerCharacter::StartRunning()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Run"));
-	UnlockCharacterBackFromCamera();
+	if (LockOnCamera)
+	{
+		LockOnCamera->UnlockFromCharacterBack();
+	}
 
 	// Check if character is already running
 	bIsRunning = true;
@@ -606,9 +565,9 @@ void APlayerCharacter::StartRunning()
 
 void APlayerCharacter::StopRunning()
 {
-	if (bIsCameraLockedOnEnemy)
+	if (LockOnCamera && LockOnCamera->IsLockedOnEnemy())
 	{
-		LockCameraOnCharacterBack();
+		LockOnCamera->LockToCharacterBack();
 	}
 
 	bIsRunning = false;
@@ -697,24 +656,37 @@ int32 APlayerCharacter::GetRollIntangibilityDelay() const
 
 int32 APlayerCharacter::GetPostureIntangibilityDelay() const
 {
-	// When fully stale (penalty >= max), delay is 4 frames
-	// Linearly interpolate from 0 (fresh) to 4 (fully stale)
-	if (PostureStalePenalty <= 0.0f)
+	if (!FighterCombat)
 	{
 		return 0;
 	}
-	
-	// Calculate delay based on penalty ratio (0.0 to 1.0)
-	float PenaltyRatio = FMath::Clamp(PostureStalePenalty / PostureMaxPenaltyValue, 0.0f, 1.0f);
-	int32 Delay = FMath::RoundToInt(PenaltyRatio * 4.0f);
-	
-	return Delay;
+
+	const FFighterSimState SimState = FighterCombat->GetSimStateCopy();
+	const float Penalty = SimState.PostureStalePenalty;
+	const float MaxPenalty = FighterCombat->PostureMaxPenalty;
+
+	if (Penalty <= 0.0f || MaxPenalty <= 0.0f)
+	{
+		return 0;
+	}
+
+	const float PenaltyRatio = FMath::Clamp(Penalty / MaxPenalty, 0.0f, 1.0f);
+	return FMath::RoundToInt(PenaltyRatio * 4.0f);
+}
+
+float APlayerCharacter::GetPostureDurationMultiplier() const
+{
+	if (!FighterCombat)
+	{
+		return 1.0f;
+	}
+	return 1.0f + FighterCombat->GetSimStateCopy().PostureStalePenalty;
 }
 
 void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): Posture"));
-	if (bIsCameraLockedOnCharacterBack)
+	if (IsCameraLockedOnCharacterBack())
 	{
 		bIsPostureActionActive = true;
 		ProcessPostureInput(Value);
@@ -723,196 +695,81 @@ void APlayerCharacter::PostureActionTriggered(const FInputActionValue& Value)
 
 void APlayerCharacter::ProcessPostureInput(const FInputActionValue& Value)
 {
-	// input is a Vector2D
-	FVector2D MovementVector = Value.Get<FVector2D>();
+	const FVector2D MovementVector = Value.Get<FVector2D>();
 
-	if (Controller != nullptr && !bIsCharging)
+	if (Controller == nullptr || bIsCharging || !FighterCombat)
 	{
-		float AngleRad = FMath::Atan2(MovementVector.Y, MovementVector.X);  // Get angle in radians [-PI, PI]
-		float AngleDeg = FMath::RadiansToDegrees(AngleRad);  // Convert to degrees [-180, 180]
-		
-		UE_LOG(LogTemp, Warning, TEXT("\nAngle between -180 and 180 for Actual Posture : %f\n"), AngleDeg);
-		
-		if (AngleDeg < 0.f) AngleDeg += 360.f;  // Convert to [0, 360]
-
-		UE_LOG(LogTemp, Warning, TEXT("\nAngle not Rounded for Actual Posture : %f\n"), AngleDeg);
-
-		int finalAngle = FMath::RoundToInt(AngleDeg);
-		UE_LOG(LogTemp, Warning, TEXT("Angle for Actual Posture : %i\n"), finalAngle);
-
-		// Determine the rounded direction
-		// switch (finalAngle)
-		// {
-		// 	case 15 ... 65:
-		// 		ActualPosture = EPosture::E_DownRight;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownRight\n"));
-		// 		break;
-		// 	case 66 ... 115:
-		// 		ActualPosture = EPosture::E_Down;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Down\n"));
-		// 		break;
-		// 	case 116 ... 165:
-		// 		ActualPosture = EPosture::E_DownLeft;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownLeft\n"));
-		// 		break;
-		// 	case 166 ... 235:
-		// 		ActualPosture = EPosture::E_Left;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Left\n"));
-		// 		break;
-		// 	case 236 ... 305:
-		// 		ActualPosture = EPosture::E_Up;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Up\n"));
-		// 		break;
-		// 	case 306 ... 360:
-		// 	case 0 ... 14:
-		// 		ActualPosture = EPosture::E_Right;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Right\n"));
-		// 		break;
-		// }
-		// switch (finalAngle)
-		// {
-		// 	case 296 ... 345:
-		// 		ActualPosture = EPosture::E_DownRight;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownRight\n"));
-		// 		break;
-		// 	case 246 ... 295:
-		// 		ActualPosture = EPosture::E_Down;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Down\n"));
-		// 		break;
-		// 	case 196 ... 245:
-		// 		ActualPosture = EPosture::E_DownLeft;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_DownLeft\n"));
-		// 		break;
-		// 	case 126 ... 195:
-		// 		ActualPosture = EPosture::E_Left;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Left\n"));
-		// 		break;
-		// 	case 56 ... 125:
-		// 		ActualPosture = EPosture::E_Up;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Up\n"));
-		// 		break;
-		// 	case 346 ... 360:
-		// 	case 0 ... 55:
-		// 		ActualPosture = EPosture::E_Right;
-		// 		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : E_Right\n"));
-		// 		break;
-		// }
-		//////////////TRUC MOCHE POUR WINDOWS///////////////////
-		EPosture TargetPosture = EPosture::E_Neutral;
-		
-		if (finalAngle >= 296 && finalAngle <= 345)
-		{
-			TargetPosture = EPosture::E_DownRight;
-		}
-		else if (finalAngle >= 246 && finalAngle <= 295)
-		{
-			TargetPosture = EPosture::E_Down;
-		}
-		else if (finalAngle >= 196 && finalAngle <= 245)
-		{
-			TargetPosture = EPosture::E_DownLeft;
-		}
-		else if (finalAngle >= 126 && finalAngle <= 195)
-		{
-			TargetPosture = EPosture::E_Left;
-		}
-		else if (finalAngle >= 56 && finalAngle <= 125)
-		{
-			TargetPosture = EPosture::E_Up;
-		}
-		else if ((finalAngle >= 346 && finalAngle <= 360) || (finalAngle >= 0 && finalAngle <= 55))
-		{
-			TargetPosture = EPosture::E_Right;
-		}
-		
-		// Request posture change (will be queued with delay if none pending)
-		RequestPostureChange(TargetPosture);
+		return;
 	}
+
+	// Character owns devices; sim owns posture truth.
+	FighterCombat->SetPostureDirection(
+		MovementVector,
+		/*bOverrideActive=*/ bIsPostureActionActive,
+		/*bAllowMovementPosture=*/ IsCameraLockedOnCharacterBack() && !bIsPostureActionActive);
 }
 
 bool APlayerCharacter::RequestPostureChange(EPosture TargetPosture)
 {
-	// Only change posture if no other posture change is pending
-	if (PostureChangeRequestFrame >= 0)
+	if (!FighterCombat)
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("[Posture] Change request ignored - posture change already pending"));
 		return false;
 	}
 
-	// Only change posture if TargetPosture is different than ActualPosture
-	if (TargetPosture == ActualPosture)
+	if (TargetPosture == EPosture::E_Neutral)
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("[Posture] Change request ignored - TargetPosture is the same as ActualPosture"));
-		return false;
+		FighterCombat->RequestNeutralPosture();
+		return true;
 	}
 
-	// Accumulate posture staling penalty (constant penalty per change)
-	PostureStalePenalty = FMath::Min(PostureStalePenalty + PosturePenalty, PostureMaxPenaltyValue);
-	LastPostureChangeFrame = SimulationFrame;
-	
-	UE_LOG(LogTemp, Log, TEXT("[Posture Staling] Posture change requested - Penalty: %.3f, TotalPenalty: %.3f, DurationMultiplier: %.3f, IntangibilityDelay: %d"), 
-		PosturePenalty, PostureStalePenalty, GetPostureDurationMultiplier(), GetPostureIntangibilityDelay());
-	
-	// Queue posture change with frame delay
-	const int32 TotalDelay = PostureBaseFramesDelay + PostureBonusFramesDelay;
-	if (TotalDelay > 0)
+	const FVector2D FakeDirection = [&]() -> FVector2D
 	{
-		PendingPosture = TargetPosture;
-		PostureChangeRequestFrame = SimulationFrame;
-		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
+		switch (TargetPosture)
 		{
-			using namespace PurgatoriumLexGameplayTags;
-			ASC->AddLooseGameplayTag(State_PostureChanging);
+		case EPosture::E_Up:        return FVector2D(0.f, 1.f);
+		case EPosture::E_Down:      return FVector2D(0.f, -1.f);
+		case EPosture::E_Left:      return FVector2D(-1.f, 0.f);
+		case EPosture::E_Right:     return FVector2D(1.f, 0.f);
+		case EPosture::E_DownLeft:  return FVector2D(-1.f, -1.f);
+		case EPosture::E_DownRight: return FVector2D(1.f, -1.f);
+		default:                    return FVector2D::ZeroVector;
 		}
-		UE_LOG(LogTemp, Log, TEXT("[Posture] Queued change to %d (will apply in %d frames at frame %d)"), 
-			(int32)TargetPosture, TotalDelay, SimulationFrame + TotalDelay);
-		return true;
-	}
-	else
-	{
-		// No delay: apply immediately
-		ActualPosture = TargetPosture;
-		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
-		{
-			using namespace PurgatoriumLexGameplayTags;
-			ASC->RemoveLooseGameplayTag(State_PostureChanging);
-		}
-		UE_LOG(LogTemp, Warning, TEXT("NEW Posture : %d\n"), (int32)ActualPosture);
-		return true;
-	}
+	}();
+	FighterCombat->SetPostureDirection(FakeDirection, true, false);
+	return true;
 }
 
-void APlayerCharacter::ProcessPendingPostureChange()
+void APlayerCharacter::SyncPresentationFromCombatSim()
 {
-	if (PostureChangeRequestFrame < 0)
+	if (!FighterCombat)
 	{
-		return; // No pending change
+		return;
 	}
-	
-	const int32 TotalDelay = PostureBaseFramesDelay + PostureBonusFramesDelay;
-	const int32 FramesElapsed = SimulationFrame - PostureChangeRequestFrame;
-	
-	if (FramesElapsed >= TotalDelay)
+
+	const FFighterSimState SimState = FighterCombat->GetSimStateCopy();
+	ActualPosture = SimState.Posture;
+	bIsInAttackAnimation = SimState.HasFlag(FighterStateFlags::Attacking);
+}
+
+void APlayerCharacter::HandleSimLightAttackStarted(EPosture SnapshotPosture, UAnimMontage* Montage, int32 SimFrame)
+{
+	UE_LOG(LogTemp, Warning,
+		TEXT("[CombatSim] Presentation: LightAttack started posture=%d frame=%d montage=%s"),
+		(int32)SnapshotPosture, SimFrame, *GetNameSafe(Montage));
+
+	if (!bAutoPlaySimAttackMontage || !Montage)
 	{
-		// Delay elapsed: apply the posture change
-		ActualPosture = PendingPosture;
-		if (UPurgatoriumLexAbilitySystemComponent* ASC = Cast<UPurgatoriumLexAbilitySystemComponent>(GetAbilitySystemComponent()))
-		{
-			using namespace PurgatoriumLexGameplayTags;
-			ASC->RemoveLooseGameplayTag(State_PostureChanging);
-		}
-		UE_LOG(LogTemp, Log, TEXT("[Posture] Applied delayed change to %d (requested at frame %d, applied at frame %d, delay: %d frames)"), 
-			(int32)ActualPosture, PostureChangeRequestFrame, SimulationFrame, TotalDelay);
-		
-		// Clear pending change
-		PostureChangeRequestFrame = -1;
-		PendingPosture = EPosture::E_Neutral;
+		return;
+	}
+
+	if (GetMesh())
+	{
+		PlayAnimMontage(Montage);
 	}
 }
 
 void APlayerCharacter::RequestNeutralPosture()
 {
-	// Use the same delay system as other posture changes (no bypass)
 	RequestPostureChange(EPosture::E_Neutral);
 }
 
@@ -940,170 +797,74 @@ void APlayerCharacter::PostureActionStopped()
 void APlayerCharacter::TryChangePostureByDefaultMovement(const FInputActionValue& Value)
 {
 	// Change Posture by default movement
-	if ( bIsCameraLockedOnCharacterBack && (bIsPostureActionActive == false) )
+	if (IsCameraLockedOnCharacterBack() && (bIsPostureActionActive == false))
 	{
 		ProcessPostureInput(Value);
 		UE_LOG(LogTemp, Warning, TEXT("ChangeDefault posture"));
 	}
 }
 
-bool APlayerCharacter::IsEnemy(int id)
+bool APlayerCharacter::IsEnemyPlayer(const APlayerCharacter* Other) const
 {
-	return (id != TeamId);
+	return Other && (Other->GetTeamId() != TeamId);
 }
 
-bool APlayerCharacter::IsEnemy(APlayerCharacter* fighter)
+bool APlayerCharacter::IsCameraLockedOnEnemy() const
 {
-	return fighter && (fighter->GetTeamId() != TeamId);
+	return LockOnCamera && LockOnCamera->IsLockedOnEnemy();
 }
 
-int  APlayerCharacter::GetTeamId()
+bool APlayerCharacter::IsCameraLockedOnCharacterBack() const
 {
-	return (TeamId);
-}
-void APlayerCharacter::SetTeamId(int teamId)
-{
-	TeamId = teamId;
+	return LockOnCamera && LockOnCamera->IsLockedOnBack();
 }
 
-void APlayerCharacter::RefreshLockOnCandidates()
+AActor* APlayerCharacter::GetLockedOnActor() const
 {
-	lockOnCandidates.Empty();
+	return LockOnCamera ? LockOnCamera->GetLockedOnActor() : nullptr;
+}
 
-	UWorld* World = GetWorld();
-	APlayerController* PC = Cast<APlayerController>(GetController());
-	if (!World || !PC) return;
-
-	// --- Setup: view and viewport ---
-	const FVector MyLoc = GetActorLocation();
-	UCameraComponent* Cam = GetFollowCamera();
-	const FVector ViewOrigin = Cam ? Cam->GetComponentLocation() : MyLoc;
-	const FVector ViewDirection = GetControlRotation().Vector();
-
-	FVector2D ViewportSize(1.f, 1.f);
-	if (GEngine && GEngine->GameViewport)
+void APlayerCharacter::HandleLockOnEnemyChanged(bool bLockedOnEnemy, AActor* LockedActor)
+{
+	APlayerController* PlayerController = Cast<APlayerController>(Controller);
+	if (!PlayerController || !FightingMappingContext)
 	{
-		GEngine->GameViewport->GetViewportSize(ViewportSize);
-		ViewportSize.X = FMath::Max(1.f, ViewportSize.X);
-		ViewportSize.Y = FMath::Max(1.f, ViewportSize.Y);
+		return;
 	}
 
-	// --- Collect valid enemy candidates ---
-	TArray<AActor*> Found;
-	UGameplayStatics::GetAllActorsOfClass(World, APlayerCharacter::StaticClass(), Found);
-
-	for (AActor* Actor : Found)
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem)
 	{
-		if (Actor == this || !IsValid(Actor)) continue;
-
-		APlayerCharacter* Other = Cast<APlayerCharacter>(Actor);
-		if (!Other || !IsEnemy(Other)) continue;
-
-		const FVector OtherLoc = Other->GetActorLocation();
-		const float DistSq = (OtherLoc - MyLoc).SizeSquared();
-		if (DistSq > LockOnMaxDistance * LockOnMaxDistance) continue;
-
-		// In front of view (control rotation)
-		const FVector ToEnemy = (OtherLoc - ViewOrigin).GetSafeNormal();
-		if (FVector::DotProduct(ViewDirection, ToEnemy) <= 0.f) continue;
-
-		// On screen (pixel bounds)
-		FVector2D ScreenPos;
-		if (!PC->ProjectWorldLocationToScreen(OtherLoc, ScreenPos, true)) continue;
-		if (ScreenPos.X < 0.f || ScreenPos.X > ViewportSize.X || ScreenPos.Y < 0.f || ScreenPos.Y > ViewportSize.Y) continue;
-
-		// Not occluded
-		FCollisionQueryParams TraceParams;
-		TraceParams.AddIgnoredActor(this);
-		TraceParams.AddIgnoredActor(Other);
-		FHitResult Hit;
-		if (World->LineTraceSingleByChannel(Hit, ViewOrigin, OtherLoc + ToEnemy * 50.f, ECC_Visibility, TraceParams)) continue;
-
-		lockOnCandidates.Add(Actor);
+		return;
 	}
 
-	// Closest first
-	lockOnCandidates.Sort([MyLoc](const AActor& A, const AActor& B)
+	if (bLockedOnEnemy)
 	{
-		return FVector::DistSquared(MyLoc, A.GetActorLocation()) < FVector::DistSquared(MyLoc, B.GetActorLocation());
-	});
+		Subsystem->AddMappingContext(FightingMappingContext, 1);
+		UE_LOG(LogTemp, Log, TEXT("[LockOn] Enemy locked: %s"), *GetNameSafe(LockedActor));
+	}
+	else
+	{
+		Subsystem->RemoveMappingContext(FightingMappingContext);
+		UE_LOG(LogTemp, Log, TEXT("[LockOn] Enemy unlocked"));
+	}
 }
 
-void APlayerCharacter::UpdateCameraLockOn()
+void APlayerCharacter::HandleLockOnBackChanged(bool bLockedOnBack)
 {
-	// This function is called from Tick() but is deterministic for rollback netcode
-	// It only uses actor positions and rotations (which are part of rollback state)
-	// All calculations are pure functions of rollback state, ensuring determinism
-	
-	if (bIsCameraLockedOnEnemy && lockedOnActor && IsValid(lockedOnActor))
+	if (!bLockedOnBack)
 	{
-		// Calculate distance for camera height adjustment
-		const float Distance = (lockedOnActor->GetActorLocation() - GetActorLocation()).Size();
-		
-		// Calculate look-at rotation
-		FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(
-			GetActorLocation(), 
-			lockedOnActor->GetActorLocation()
-		);
-		
-		// Adjust pitch based on distance (closer = higher pitch)
-		LookAtRotation.Pitch -= (targetingHeighOffset - Distance / 100.0f);
-		
-		// Apply rotation to controller
-		if (AController* MyController = GetController())
-		{
-			MyController->SetControlRotation(LookAtRotation);
-		}
+		RequestNeutralPosture();
 	}
 }
 
 void APlayerCharacter::LockUnlockCameraOnEnemy()
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Native): LockUnlock"));
-	if (bIsCameraLockedOnEnemy)
+	if (LockOnCamera)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function unlocking camera from enemy"));
-		//UnlockCameraFromEnemy
-		bIsCameraLockedOnEnemy = false;
-		lockedOnActor = nullptr;
-		UnlockCharacterBackFromCamera();
-		if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-		{
-			if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-			{
-				Subsystem->RemoveMappingContext(FightingMappingContext);
-			}
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function locking camera on enemy"));
-		RefreshLockOnCandidates();
-		if (lockOnCandidates.Num() > 0)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function enemy found, locking camera on enemy"));
-			lockedOnActor = lockOnCandidates[0]; // TODO: wrap ça dans une fonction SelectEnemyToLock??
-			if (lockedOnActor)
-			{
-				bIsCameraLockedOnEnemy = true;
-				if (bIsRunning == false)
-				{
-					LockCameraOnCharacterBack();
-				}
-
-				if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
-				{
-					if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-					{
-						Subsystem->AddMappingContext(FightingMappingContext, 1);
-					}
-				}
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("LockUnlockCameraOnEnemy function no enemy found, locking camera on character back"));
-		}
+		LockOnCamera->ToggleLockOnEnemy(/*bAllowOrientToBack=*/ !bIsRunning);
 	}
 }
 
@@ -1119,16 +880,34 @@ bool APlayerCharacter::CanActivateAbilityForInputTag_Implementation(FGameplayTag
 
 bool APlayerCharacter::CanPerformLightAttack_Implementation() const
 {
-	const UCharacterMovementComponent* Movement = GetCharacterMovement();
-	return Movement
-		&& !Movement->IsFalling()
-		&& !bIsInAttackAnimation
-		&& !bIsCharging;
+	return FighterCombat
+		&& !FighterCombat->IsAttacking()
+		&& GetCharacterMovement()
+		&& !GetCharacterMovement()->IsFalling();
 }
 
 void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 {
 	UE_LOG(LogTemp, Log, TEXT("[Input] Triggered (Ability): %s"), *InputTag.ToString());
+
+	using namespace PurgatoriumLexGameplayTags;
+
+	// Light attack is sim-owned (not GAS). Other tags may still use ASC until migrated.
+	if (InputTag == InputTag_LightAttack)
+	{
+		if (!FighterCombat)
+		{
+			UE_LOG(LogTemp, Error, TEXT("[CombatSim] LightAttack pressed but FighterCombat missing"));
+			return;
+		}
+		if (!CanActivateAbilityForInputTag(InputTag))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[CombatSim] LightAttack gated — not sent to sim"));
+			return;
+		}
+		FighterCombat->PressLightAttack();
+		return;
+	}
 
 	if (!CanActivateAbilityForInputTag(InputTag))
 	{
@@ -1144,7 +923,6 @@ void APlayerCharacter::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (ASC)
 	{
 		ASC->AbilityInputTagPressed(InputTag);
-		// Process input immediately for rollback netcode compatibility (frame-accurate input)
 		const bool bActivated = ASC->ProcessAbilityInput(0.0f, false);
 		if (IsInputTagBufferable(InputTag) && !bActivated)
 		{
