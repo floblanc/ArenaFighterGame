@@ -81,9 +81,10 @@ That is normal fighter design, not “generic programming” in the C++ sense.
 
 **Checklist:** [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md)
 
-1. Create `LightAttackMoveSet` Data Asset  
-2. Assign on `FighterCombat` component  
-3. AnimBP: keep reading `ActualPosture` if already set up  
-4. Retune lock-on on `LockOnCamera` if you had custom values on the character  
+1. Create `LightAttackMoveSet` Data Asset (class picker name **LightAttackMoveSet**)  
+2. Assign on **`BP_PlayerCharacter`** → component **`FighterCombat`** → **Light Attack Move Set**  
+3. AnimBP **`ABP_Posture`**: keep reading `ActualPosture` if already set up  
+4. Retune lock-on on **`LockOnCamera`** only if you customized values  
+5. Full steps: [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md) — use **that** file; it was corrected against Content + C++
 
 No big ability Blueprint graphs for core combat.

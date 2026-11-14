@@ -7,6 +7,7 @@ Oriented combat postures: design rules and where they live in code.
 ## Design
 
 - **6 directions + neutral:** Up, Down, Left, Right, DownLeft, DownRight, Neutral  
+- **Editor DisplayNames** (`UMETA` on `EPosture`): `NEUTRAL`, `UP`, `DOWN`, `LEFT`, `RIGHT`, `DOWNLEFT`, `DOWNRIGHT` (not Title Case)
 - **Passive:** movement direction while lock-on (“camera on back”)  
 - **Active:** dedicated posture input overwrites movement  
 - **Always visual:** idle/walk upper body tilts with current posture (AnimBP)  

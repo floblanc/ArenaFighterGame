@@ -4,6 +4,9 @@
 
 Architecture choices that *intentionally diverge* from Epic defaults (e.g. combat authority = custom fixed-tick sim instead of GAS) are recorded in `Architecture_Decisions.md` and `CombatSim_Design.md`. Those override Epic *product patterns*, not Epic *API truth*.
 
+**Local install (your machine):** `E:\Epic Games\UE_5.8`  
+Cloud agents cannot mount that path. Project truth for *this* repo is still `EngineAssociation: "5.8"` + Target `V7` / `Unreal5_8`. When editor labels disagree with a note, open the matching C++ `UPROPERTY` / `UFUNCTION` / `UMETA(DisplayName=…)` — those are what the Details panel shows.
+
 Pinned hubs:
 
 - [Unreal Engine 5.8 Documentation](https://dev.epicgames.com/documentation/unreal-engine/unreal-engine-5-8-documentation)

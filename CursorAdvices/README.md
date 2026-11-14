@@ -2,7 +2,8 @@
 
 Scratchpad / learning notes for **PurgatoriumLex** (arena fighter, UE5, C++-first).
 
-These are **not** engine docs and not always in sync with code. Prefer code + this map.
+These are **not** engine docs. Prefer **`Source/` + Content + Epic UE 5.8 docs**.  
+If a checklist step does not match the Details panel, trust the C++ `UPROPERTY` / `UMETA(DisplayName)` over an older note.
 
 ---
 
