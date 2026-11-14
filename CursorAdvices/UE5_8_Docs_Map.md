@@ -1,11 +1,14 @@
 # Unreal Engine 5.8 — Official documentation authority
 
-**Rule for this project:** Epic’s **UE 5.8** documentation and C++ API Reference are the **primary technical authority** for engine APIs, reflection, modules, Gameplay Framework, Blueprints, animation tooling, and packaging.
+**Status: Current** for as long as `EngineAssociation` is **5.8**.  
+**How to use this file + local engine:** [UE_Verification_Rules.md](UE_Verification_Rules.md) (cite or don’t claim).
+
+**Rule for this project:** Epic’s **UE 5.8** documentation and C++ API Reference are the **primary technical authority** for engine APIs, reflection, modules, Gameplay Framework, Blueprints, animation tooling, and packaging — **when verified**, not when recalled from model memory.
 
 Architecture choices that *intentionally diverge* from Epic defaults (e.g. combat authority = custom fixed-tick sim instead of GAS) are recorded in `Architecture_Decisions.md` and `CombatSim_Design.md`. Those override Epic *product patterns*, not Epic *API truth*.
 
-**Local install (your machine):** `E:\Epic Games\UE_5.8`  
-Cloud agents cannot mount that path. Project truth for *this* repo is still `EngineAssociation: "5.8"` + Target `V7` / `Unreal5_8`. When editor labels disagree with a note, open the matching C++ `UPROPERTY` / `UFUNCTION` / `UMETA(DisplayName=…)` — those are what the Details panel shows.
+**Local install (your machine):** `E:\Epic Games\UE_5.8` (Windows) — regenerate a navigation index with `scripts/generate_engine_tree_index.ps1` / `.sh` into gitignored `CursorAdvices/local/`.  
+Cloud agents cannot mount that path. Project pin: `EngineAssociation: "5.8"` + Target `V7` / `Unreal5_8`. When editor labels disagree with a note, open the matching C++ `UPROPERTY` / `UFUNCTION` / `UMETA(DisplayName=…)` — those are what the Details panel shows.
 
 Pinned hubs:
 
@@ -148,8 +151,11 @@ Project policy: **no Event Graph for light-attack authority**. Editor work = Dat
 
 ## How answers should be derived (agent + human)
 
-1. **Engine fact** (API, specifier, module, AnimBP node, CMC behavior) → open the matching **5.8** doc or API page; cite it.  
-2. **Project architecture** (who owns combat truth, rollback plan) → `Architecture_Decisions.md` / `Combat/` code.  
-3. If Epic pattern conflicts with rollback (GAS as combat authority, AnimNotify as hit authority) → **state the conflict**, keep our decision, use Epic only for the surrounding APIs.
+Full policy: [UE_Verification_Rules.md](UE_Verification_Rules.md).
 
-This file is the **index**, not a dump of every Epic page. The “whole documentation” lives on Epic’s site; this map is how we stay precise against it without inventing engine behavior.
+1. **Engine fact** (API, specifier, module, AnimBP node, CMC behavior) → open the matching **5.8** doc, API page, **or installed engine header**; cite it.  
+2. **Project architecture** (who owns combat truth, rollback plan) → `Architecture_Decisions.md` / `Combat/` code.  
+3. If Epic pattern conflicts with rollback (GAS as combat authority, AnimNotify as hit authority) → **state the conflict**, keep our decision, use Epic only for the surrounding APIs.  
+4. If you cannot verify → say **uncertain**. Do not invent menus or APIs.
+
+This file is the **index**, not a dump of every Epic page. The “whole documentation” lives on Epic’s site + your local engine install.

@@ -2,6 +2,8 @@
 
 Decisions from design reviews for PurgatoriumLex. One page: what we chose and why.
 
+**Engine facts / accuracy:** [UE_Verification_Rules.md](UE_Verification_Rules.md) — this file overrides Epic *product patterns* for combat, not Epic *API truth*.
+
 ---
 
 ## Product shape

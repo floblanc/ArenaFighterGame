@@ -117,3 +117,8 @@ Plugins/**/Intermediate/*
 ### Unreal (additional common generated outputs) ###
 LocalBuilds/
 Saved/StagedBuilds/
+
+### Local UE engine indexes (huge; regenerate on your machine) ###
+CursorAdvices/local/
+CursorAdvices/*_Engine_Tree_Index.md
+CursorAdvices/UE*_Engine_Tree_Index.md

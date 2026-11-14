@@ -2,7 +2,8 @@
 
 Scratchpad / learning notes for **PurgatoriumLex** (arena fighter, UE5, C++-first).
 
-These are **not** engine docs. Prefer **`Source/` + Content + Epic UE 5.8 docs**.  
+These are **not** engine docs. Prefer **`Source/` + Content + Epic UE 5.8 docs / local engine headers**.  
+**Accuracy policy:** [UE_Verification_Rules.md](UE_Verification_Rules.md) (cite or don’t claim). Repo root also has [AGENTS.md](../AGENTS.md).  
 If a checklist step does not match the Details panel, trust the C++ `UPROPERTY` / `UMETA(DisplayName)` over an older note.
 
 **Status labels used below:**
@@ -28,6 +29,7 @@ If a checklist step does not match the Details panel, trust the C++ `UPROPERTY` 
 | [Posture_System.md](Posture_System.md) | **Current** | Sim authority + `ActualPosture` + snapshot |
 | [Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md) | **Design (future)** | Anti-spam / exhaustion (not implemented) |
 | [UE5_Basics_UObject_And_Naming.md](UE5_Basics_UObject_And_Naming.md) | **Current** | `U`/`A`/`F` naming, UObject vs sim |
+| [UE_Verification_Rules.md](UE_Verification_Rules.md) | **Current** | How to verify UE facts; upgrade + local index |
 | [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md) | **Current** | Official UE 5.8 docs index (Epic = engine API truth) |
 | [Blueprint_Modification_Checklist.md](Blueprint_Modification_Checklist.md) | **Editor** | Verified steps after combat/lock-on C++ |
 
@@ -72,15 +74,21 @@ Under **[`deprecated/`](deprecated/README.md)** — one subject per file.
 
 ## Local-only files
 
-Your machine may have large dumps such as `UE58_Engine_Tree_Index.md` (engine tree listing). Those are **indexes**, not architecture advice. Prefer [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md) + Epic docs for engine facts. Cloud agents only see what is in the Git workspace.
+Large engine tree dumps go under **`CursorAdvices/local/`** (gitignored). Generate with:
+
+- Windows: `.\CursorAdvices\scripts\generate_engine_tree_index.ps1 -EngineRoot "E:\Epic Games\UE_5.8"`
+- macOS/Linux: `./CursorAdvices/scripts/generate_engine_tree_index.sh "/path/to/UE_5.8"`
+
+Those files are **navigation indexes**, not proof. Open the real header after you find the path. Cloud agents only see the Git workspace unless you run a **local** agent.
 
 ---
 
 ## House rules for this folder
 
 1. **One clear subject per file.** Put a status banner at the top when the file is not **Current**.  
-2. If advice conflicts with `Source/PurgatoriumLex/Combat/`, **code wins** for architecture.  
-3. If advice conflicts with **Epic UE 5.8 documentation / API** on engine facts, **Epic wins** — update our notes. Index: [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md).  
-4. Mark thrown approaches **deprecated**, don’t delete explanations you still want.  
-5. Deprecated material lives under `deprecated/` with its own README.  
-6. **Roadmap gate:** no new roll/tech/staling/grab work until light-attack hit → block → stun exists in the sim.
+2. Follow [UE_Verification_Rules.md](UE_Verification_Rules.md) for all engine claims.  
+3. If advice conflicts with `Source/PurgatoriumLex/Combat/`, **code wins** for architecture.  
+4. If advice conflicts with **Epic versioned docs / installed engine headers**, **Epic/install wins** — update our notes. Index: [UE5_8_Docs_Map.md](UE5_8_Docs_Map.md).  
+5. Mark thrown approaches **deprecated**, don’t delete explanations you still want.  
+6. Deprecated material lives under `deprecated/` with its own README.  
+7. **Roadmap gate:** no new roll/tech/staling/grab work until light-attack hit → block → stun exists in the sim.
