@@ -1,5 +1,10 @@
 # Stale Moves Mechanics Summary (Super Smash Bros.)
 
+> **REFERENCE ONLY — not implemented in PurgatoriumLex.**  
+> Attack-queue staling is Smash research for a possible later feel pass.  
+> Do not build a 9-slot queue before hitboxes exist. Project combat authority is the fixed-tick sim + DataAsset rows ([CombatSim_Design.md](CombatSim_Design.md)).  
+> For *dodge* staling (different system), see [RollStalingMechanics.md](RollStalingMechanics.md).
+
 ## Overview
 
 **Stale Moves** (also called "Stale-Move Negation" or "Repetition Effect") is a mechanic that reduces the damage and knockback of moves when they are used repeatedly. It encourages players to use their full moveset instead of spamming the same attack.

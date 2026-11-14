@@ -1,10 +1,12 @@
 # Posture Shoulder Animation Setup (Enum → Mixed Animations)
 
-> **Still valid for AnimBP.** For combat authority / sim ownership of posture, see [Posture_System.md](Posture_System.md).
+> **Still valid as AnimBP how-to.** Combat authority: [Posture_System.md](Posture_System.md).  
+> **Default pawn** (`BP_PlayerCharacter`) already uses AnimBP **`ABP_Posture`** — open and extend that; do not create a second AnimBP unless you intend to replace it.  
+> Enum **Details / Switch** labels are DisplayNames: **`NEUTRAL`**, **`UP`**, **`DOWN`**, **`LEFT`**, **`RIGHT`**, **`DOWNLEFT`**, **`DOWNRIGHT`** (not Title Case).
 
 ## The idea
 
-- You already have an **enum** in C++ (e.g. `EPosture`: Neutral, Up, Down, Left, Right, DownLeft, DownRight) and a variable on the character (e.g. `ActualPosture`).
+- You already have an **enum** in C++ (`EPosture`) and a variable on the character (`ActualPosture`).
 - You want **mixed animations**: the same Idle and Walk as base, but the **upper body (shoulders/spine)** changes with the current posture.
 - So: **base motion (Idle / Walk) + posture overlay (upper body only)**, with the enum choosing which overlay is active.
 
@@ -120,9 +122,9 @@ Below: first connect the enum and the base blend (Part 1–2), then choose Path 
 
 ## Part 1: Animation Blueprint and enum
 
-1. **Create the Animation Blueprint**
-   - Content Browser → right-click → **Animation** → **Animation Blueprint**.
-   - Pick your character **Skeleton**. Parent Class: **AnimInstance**. Create and open it.
+1. **Open (or create) the Animation Blueprint**
+   - Prefer existing: `/Game/PurgatoriumLex/Characters/Mannequins/Anims/Unarmed/ABP_Posture`.
+   - Only if missing: Content Browser → right-click → **Animation** → **Animation Blueprint** → pick Skeleton → Parent Class **AnimInstance**.
 
 2. **Variable for posture**
    - In **My Blueprint**, add a variable `Posture`, type **Enum** → your `EPosture` enum.

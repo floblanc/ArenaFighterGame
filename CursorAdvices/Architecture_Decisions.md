@@ -59,7 +59,8 @@ Dual-path migration flags (`bUseFighterCombatSim`, etc.) are **deleted** — pos
 4. **Local 1v1** splitscreen  
 5. **GGPO / rollback session** after local determinism (hash/replay) works  
 
-**Do not** expand tech / roll staling / grab tags until the vertical slice works.
+**Do not** expand tech / roll staling / grab tags until the vertical slice works.  
+Existing character tech/roll code is **scaffolding** — see status banners on [TechImplementation.md](TechImplementation.md) / [RollStalingMechanics.md](RollStalingMechanics.md).
 
 ---
 

@@ -41,11 +41,13 @@ No change required if AnimBP already reads `ActualPosture`.
 
 ## Delay and staling
 
-- Posture changes can be delayed N sim frames (`PostureBaseFramesDelay`, etc.)  
-- Repeated changes accumulate staling penalty (duration / intangibility helpers)  
-- One pending change at a time (direction noise during delay is dropped) — same rule as old character code  
+- Posture changes can be delayed N **sim** frames (`PostureBaseFramesDelay` + `PostureBonusFramesDelay`)  
+- Repeated changes accumulate `PostureStalePenalty` (used by character helpers for duration / intangibility feel)  
+- One pending change at a time (stick noise during delay is dropped)  
+- **Tune in editor** on component **`FighterCombat`** (category **Combat Sim | Posture**), not on the character root  
+- Live penalty / pending fields belong in **sim state**; exhaustion redesign is future ([Posture_Spam_Exhaustion_Design.md](Posture_Spam_Exhaustion_Design.md))
 
-Live values belong in sim state; see [CombatSim_Design.md](CombatSim_Design.md).
+See [CombatSim_Design.md](CombatSim_Design.md).
 
 ---
 

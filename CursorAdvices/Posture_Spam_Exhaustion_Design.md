@@ -1,5 +1,8 @@
 # Posture spam / exhaustion (design — not implemented)
 
+> **Design (future).** Do not implement until light-attack vertical slice exists.  
+> Today’s `PostureStalePenalty` float in sim state is a **placeholder**, not this exhaustion model.
+
 Future anti-spam for rapid posture flicking. Parked so the vertical slice stays first.
 
 ---

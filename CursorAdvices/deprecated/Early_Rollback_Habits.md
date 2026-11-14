@@ -40,7 +40,7 @@ These are **necessary hygiene**, not a rollback implementation.
 
 Advice shifted tech windows to **Landed / NotifyHit** instead of predictive line traces, and used frame stamps for window/lockout.  
 Directionally sensible for determinism **once** tech lives in the sim.  
-Until then: treat `TechImplementation.md` (mechanics) as design; don’t trust old “compatibility” checklists.
+Current honest status: [../TechImplementation.md](../TechImplementation.md) (**Partial / debt** on character + ASC — not GGPO-ready).
 
 ---
 

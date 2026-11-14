@@ -12,13 +12,15 @@ Fixed-tick fighter simulation: current combat architecture.
 
 | Layer | Type | Role |
 |-------|------|------|
-| `FFighterSimState` | `F` / `USTRUCT` | Rewindable authority blob (no Actor pointers) |
-| `FFighterFrameInput` | `F` / `USTRUCT` | Per-frame input (directions + edge buttons) |
-| `FFighterCombatSim` | plain `F` class | `TickFrame(Input)` only mutation entry |
-| `UFighterCombatComponent` | `U` component | 60 Hz catch-up from `DeltaTime`, events |
+| `FFighterSimState` | `USTRUCT(BlueprintType)` | Rewindable authority blob (no Actor pointers). Fields are **BlueprintReadOnly** snapshots — not editor-tuned live. |
+| `FFighterFrameInput` | `USTRUCT()` **without** `BlueprintType` | Per-frame input latch (C++ only). Edges clear after one sim tick. |
+| `FFighterCombatSim` | plain `F` class (not UObject) | `TickFrame(Input)` only mutation entry |
+| `UFighterCombatComponent` | `U` component | Editor tunables + 60 Hz catch-up from `DeltaTime` + presentation delegates |
 | `ULightAttackMoveSet` | `U` DataAsset | Per-posture timings / damage / soft montage |
 
 Presentation (AnimBP, montage play) **reads** state / events. It does not invent hit/miss.
+
+**Health:** `FFighterSimState.Health` is a sim placeholder for future hits. HUD still uses **AttributeSet Health** — do not treat them as one system yet.
 
 ---
 
@@ -39,7 +41,7 @@ Put in `FFighterSimState` only what you must **restore after rollback** to conti
 - **Out:** mesh, montages as authority, camera actors, full move-definition assets  
 - **At attack start:** copy ints from DataAsset into state (active move timings)
 
-Tuning constants currently live inside the struct for simplicity; can move to external config later.
+**Editor tunables** (base/bonus delay, penalty, reset frames, tick rate, move set) live on **`UFighterCombatComponent`** and are pushed into state via `ApplyConfigToSim` / BeginPlay. Live staling values stay inside the state blob.
 
 ---
 

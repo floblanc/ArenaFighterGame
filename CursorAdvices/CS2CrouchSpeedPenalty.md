@@ -1,5 +1,8 @@
 # Counter-Strike 2 Crouch Speed Penalty Mechanics
 
+> **REFERENCE ONLY — not wired into PurgatoriumLex.**  
+> Useful contrast: **static** trade-off vs **accumulating** staling. Not a build checklist.
+
 ## Overview
 
 Counter-Strike 2 implements a **static crouch speed penalty** that reduces movement speed when crouching. Unlike staling systems (like roll staling in Smash Bros), this is a **constant penalty** that doesn't accumulate or worsen with repeated use.

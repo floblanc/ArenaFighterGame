@@ -39,7 +39,8 @@ if (ASC->HasMatchingGameplayTag(State_Hitstun)) { /* blocked */ }
 | `State.PostureChanging` | `FighterStateFlags::PostureChanging` |
 | Gate via ability tag rules | `CanStartLightAttack` / phase checks in `FFighterCombatSim` |
 
-Transitional code may still **mirror** `State.PostureChanging` onto ASC for old BP queries — that mirror is not authority.
+Posture / light-attack **do not** mirror sim flags onto ASC today.  
+**Tech / knockdown scaffolding** on `APlayerCharacter` still uses ASC `State.*` tags — that is legacy storage for those verbs, not the posture/attack model.
 
 ## Migration lesson (still valid)
 
