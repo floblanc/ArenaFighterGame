@@ -1,195 +1,163 @@
 # Blueprint / editor modification checklist
 
-Apply these in the Unreal Editor **after a successful C++ compile** of this branch against **UE 5.8**.
+Do these in the **Unreal Editor** after this branch’s C++ builds against **UE 5.8**.  
+Agents cannot create or save `.uasset` for you.
 
-Agents cannot author `.uasset` for you.
-
-**Verified against (repo + Content scrape, 2026-11-14):**
-
-| Source of truth | Value |
-|-----------------|--------|
-| Engine pin | `PurgatoriumLex.uproject` → `"EngineAssociation": "5.8"` |
-| Targets | `DefaultBuildSettings = V7`, `IncludeOrderVersion = Unreal5_8` |
-| Default GameMode | `/Game/PurgatoriumLex/Game/BP_PurgatoriumLexGameMode` (`Config/DefaultEngine.ini`) |
-| **Default pawn** | **`BP_PlayerCharacter`** (GameMode `DefaultPawnClass`) — **not** the Lyra-named BP |
-| AnimBP on that pawn | `/Game/PurgatoriumLex/Characters/Mannequins/Anims/Unarmed/ABP_Posture` |
-| Mesh on that pawn | `/Game/PurgatoriumLex/Characters/Mannequins/Meshes/SKM_Quinn_Simple` |
-| Input config | `/Game/PurgatoriumLex/Input/DA_PlayerInputConfig` |
-| C++ parent | `/Script/PurgatoriumLex.PlayerCharacter` |
-
-Secondary BP (same parent, also wired):  
-`Content/PurgatoriumLex/Characters/Player/BP_PlayerCharacterForLyraAnimation`  
-Only edit that if you actually PIE with it. Day-to-day play uses **`BP_PlayerCharacter`**.
-
-Related code docs: `Source/PurgatoriumLex/Combat/CombatSim_REVIEW.md`, `Characters/PlayerCharacter_Decomposition.md`.
+Pull latest `cursor/fighter-combat-sim-1fdf` first so this file matches the repo (older local copies of this checklist were wrong).
 
 ---
 
-## Honest limits
+## Facts (verified from project files)
 
-- This cloud agent **cannot read** `E:\Epic Games\UE_5.8`. Engine menu names below match Epic’s **UE 5.8 Data Assets** docs + your project’s reflected C++ names.
-- If a class does **not** appear in a picker, you are almost always **not compiling / not loading** the `PurgatoriumLex` module — fix build first; do not invent Blueprint workarounds.
-
----
-
-## 0. Compile on UE 5.8 first
-
-1. Project must open with engine at `E:\Epic Games\UE_5.8` (Launcher / `.uproject` → **Switch Unreal Engine version…** → **5.8** if needed).
-2. Generate project files from the `.uproject`, then build **`PurgatoriumLexEditor`** (Visual Studio **2022** C++ toolchain is what UBT expects; VS 2026 alone is not enough).
-3. Open the editor only after that build succeeds.
-4. Open **`BP_PlayerCharacter`**, Compile. Fix any red nodes / missing pins (see §4). Save.
-
-Native components created in C++ (`FighterCombat`, `LockOnCamera`) appear on the BP **after** the parent C++ class loads. You do **not** Add Component for those — select them in the Components panel.
-
----
-
-## 1. Required — `LightAttackMoveSet` Data Asset
-
-Without an assigned move set, light attack still runs with **hardcoded fallback timings** and logs warnings; montages will not come from data.
-
-| Step | Exact action (UE 5.8) |
-|------|------------------------|
-| 1 | Content Browser → folder of your choice (e.g. create `Content/PurgatoriumLex/Combat/` — **that folder does not exist yet**) |
-| 2 | Right-click → **Miscellaneous → Data Asset** ([Epic 5.8 Data Assets](https://dev.epicgames.com/documentation/unreal-engine/data-assets-in-unreal-engine)) |
-| 3 | Pick class **`LightAttackMoveSet`** (C++: `ULightAttackMoveSet`, path `/Script/PurgatoriumLex.LightAttackMoveSet`) |
-| 4 | Name e.g. `DA_LightAttack_Default` |
-| 5 | Open asset → **Moves** array. Add one element per posture you care about |
-| 6 | Per row, set enum **Posture** using the **DisplayName** values from C++ (see table below) |
-| 7 | Per row: **Startup Frames**, **Active Frames**, **Recovery Frames**, **Damage**, optional **Montage** (`TSoftObjectPtr`) |
-| 8 | Open **`BP_PlayerCharacter`** → Components → select **`FighterCombat`** |
-| 9 | Details → category **Combat Sim** → **Light Attack Move Set** = your Data Asset |
-| 10 | Optional on the **pawn** (not the component): **Auto Play Sim Attack Montage** (default true) |
-
-### Posture enum labels in the editor
-
-C++ enum is `EPosture`. Details / dropdown shows **`UMETA(DisplayName=…)`**, not the C++ enumerator name:
-
-| C++ | What you see in Details |
-|-----|-------------------------|
-| `E_Neutral` | **NEUTRAL** |
-| `E_Up` | **UP** |
-| `E_Down` | **DOWN** |
-| `E_Left` | **LEFT** |
-| `E_Right` | **RIGHT** |
-| `E_DownLeft` | **DOWNLEFT** |
-| `E_DownRight` | **DOWNRIGHT** |
-
-Do **not** look for labels like `Neutral` / `DownLeft` — those are not the DisplayNames.
-
-**Do not** build an Event Graph for light-attack authority. Tag `InputTag.LightAttack` is diverted to the sim in `APlayerCharacter::Input_AbilityInputTagPressed`.
-
----
-
-## 2. Posture presentation (AnimBP)
-
-Default pawn already references **`ABP_Posture`**.
-
-| Step | Action |
+| Item | Value |
 |------|--------|
-| 1 | Open `ABP_Posture` |
-| 2 | Event Graph: read **`ActualPosture`** from the owning `PlayerCharacter` (category **Combat Sim \| Presentation**, `BlueprintReadOnly`) |
-| 3 | Drive upper-body tilt / layered blend from that enum |
+| Engine | `PurgatoriumLex.uproject` → `EngineAssociation: "5.8"` (install: `E:\Epic Games\UE_5.8`) |
+| GameMode | `/Game/PurgatoriumLex/Game/BP_PurgatoriumLexGameMode` |
+| **Pawn to edit** | **`/Game/PurgatoriumLex/Characters/Player/BP_PlayerCharacter`** (GameMode `DefaultPawnClass`) |
+| AnimBP already on that pawn | `/Game/PurgatoriumLex/Characters/Mannequins/Anims/Unarmed/ABP_Posture` |
+| Input config already assigned | `/Game/PurgatoriumLex/Input/DA_PlayerInputConfig` |
+| C++ parent | `PlayerCharacter` (`/Script/PurgatoriumLex.PlayerCharacter`) |
 
-How-to: [PostureShoulderAnimationSetup.md](PostureShoulderAnimationSetup.md)
-
-**Do not** write `ActualPosture` from Blueprint — C++ overwrites it each tick from the sim (`SyncPresentationFromCombatSim`).
-
----
-
-## 3. Lock-on settings (only if you had custom values)
-
-Lock-on **tunables** live on component **`LockOnCamera`** (`ULockOnCameraComponent`), created in C++ as subobject name `LockOnCamera`.
-
-| C++ property | Details label on `LockOnCamera` |
-|--------------|----------------------------------|
-| `TargetingHeightOffset` | **Targeting Height Offset** |
-| `LockOnMaxDistance` | **Lock On Max Distance** |
-| `LockOnFOVDegrees` | **Lock On FOV Degrees** (reserved; candidate filter still uses screen projection) |
-
-### Reading lock-on from Blueprint graphs
-
-Prefer the **character** pure functions (wrappers already on `APlayerCharacter`):
-
-| Goal | Character node (Category **Camera**) |
-|------|--------------------------------------|
-| Locked on enemy? | **Is Camera Locked On Enemy** |
-| Camera on back? | **Is Camera Locked On Character Back** |
-| Locked actor | **Get Locked On Actor** |
-
-Or call the component: **Is Locked On Enemy**, **Is Locked On Back**, **Get Locked On Actor**, **Get Lock On Candidates**.
-
-Boom + **Follow Camera** stay on the pawn.
-
-**Note:** A Content scrape of `BP_PlayerCharacter` did **not** find saved defaults for the old lock-on property names (`targetingHeighOffset`, `bIsCameraLockedOnEnemy`, etc.). If your local BP never customized them, §3 is “open component, confirm defaults,” not a big rewire.
+Ignore `/Game/PurgatoriumLex/Characters/Player/BP_PlayerCharacterForLyraAnimation` unless you deliberately PIE with that BP.
 
 ---
 
-## 4. Broken pins / Kick vs sim light attack
+## A. Compile (block everything else until this works)
 
-### Deleted dual-path flags
+1. Associate the `.uproject` with **UE 5.8** (right‑click → **Switch Unreal Engine version…** → **5.8** if needed).
+2. Build **`PurgatoriumLexEditor`** (Visual Studio **2022** C++ tools, or Editor compile after generate). VS 2026 alone is not enough for UBT.
+3. Open the project. If the editor asks to rebuild modules, accept.
+4. In Content Browser open **`BP_PlayerCharacter`** → **Compile**.  
+   - If Compile fails on missing pins, fix those first (section **D**).  
+   - Save.
 
-C++ removed `bUseFighterCombatSim` / `bRouteLightAttackToCombatSim`. They are **not** present in the current `BP_PlayerCharacter` asset strings either. If you still see those names, you are on an **old local BP** — delete the broken nodes.
+**Check:** In the Blueprint editor **Components** list you should see inherited **`FighterCombat`** and **`LockOnCamera`**.  
+Do **not** use **Add** → Component for those — they come from the C++ constructor (`CreateDefaultSubobject`).  
+If they are missing after a clean build, the `PurgatoriumLex` module is not loading (wrong engine / failed compile).
 
-### Posture tuning moved to `FighterCombat`
+---
 
-Do **not** look for posture delay/penalty on the character root. On **`FighterCombat`** → category **Combat Sim | Posture**:
+## B. Required — create and assign light-attack data
 
+Without this, light attack still runs (hardcoded fallback frames) but you get log warnings and **no montage from data**.
+
+### B1. Create the Data Asset
+
+1. Content Browser → go under **`PurgatoriumLex`** (path `/Game/PurgatoriumLex/...`).  
+   Optionally create a folder **`Combat`** (`/Game/PurgatoriumLex/Combat` — it does **not** exist yet).
+2. Right‑click empty space → **Miscellaneous** → **Data Asset**  
+   (Epic UE 5.8: [Data Assets](https://dev.epicgames.com/documentation/unreal-engine/data-assets-in-unreal-engine)).
+3. In the class picker, choose **`LightAttackMoveSet`**  
+   (native class `ULightAttackMoveSet` — if it is not listed, section **A** failed).
+4. Name it e.g. **`DA_LightAttack_Default`**. Open it.
+
+### B2. Fill `Moves`
+
+On the asset, category **Light Attacks** → array **Moves**:
+
+1. Add one array element per posture you care about (all seven if you want full coverage).
+2. On each element set:
+
+| Details label | Notes |
+|---------------|--------|
+| **Posture** | Use DisplayNames: **NEUTRAL**, **UP**, **DOWN**, **LEFT**, **RIGHT**, **DOWNLEFT**, **DOWNRIGHT** (not `Neutral` / `DownLeft`) |
+| **Startup Frames** | int |
+| **Active Frames** | int |
+| **Recovery Frames** | int |
+| **Damage** | float |
+| **Montage** | optional soft AnimMontage |
+
+3. Save the Data Asset.
+
+### B3. Assign it on the pawn
+
+1. Open **`BP_PlayerCharacter`**.
+2. Components → select **`FighterCombat`**.
+3. Details → category **Combat Sim** → **Light Attack Move Set** → pick `DA_LightAttack_Default`.
+4. Optional (pawn root, not the component): select the **BP_PlayerCharacter (self)** root → **Combat Sim** → **Auto Play Sim Attack Montage** (default **true** = C++ plays the montage when the sim starts an attack).
+5. Compile + Save.
+
+**Do not** add Event Graph logic for light-attack authority. Input tag `InputTag.LightAttack` is handled in C++ (`PressLightAttack` on the sim).
+
+---
+
+## C. Required — stop Kick fighting the sim on the same tag
+
+`DA_PlayerInputConfig` maps **IA_LightAttack** → **`InputTag.LightAttack`**.  
+C++ sends that tag to the **sim**.  
+`BP_PlayerCharacter` still grants **`GA_Kick`** through **Ability Input Mappings** with the same tag → Kick and sim light attack conflict.
+
+1. Open **`BP_PlayerCharacter`**.
+2. Open **Class Defaults** (toolbar **Class Defaults**, or edit defaults — these fields are `EditDefaultsOnly`).
+3. Category **Abilities** → **Ability Input Mappings**.
+4. Remove any row where:
+   - **Ability Class** = `GA_Kick` (or similar Kick ability), and  
+   - **Input Tag** = `InputTag.LightAttack`
+5. Compile + Save.
+
+Keep **Input Config** = `DA_PlayerInputConfig` (category **Enhanced Input**) so the tag still fires.
+
+---
+
+## D. Only if Compile shows broken pins
+
+These C++ properties were **removed** from the character. Clear / delete broken nodes that still reference them:
+
+- `bUseFighterCombatSim`, `bRouteLightAttackToCombatSim`
+- Old posture delay / penalty properties on the **character root** (tuning is on **`FighterCombat`** now)
+- Old lock-on fields on the character (`targetingHeighOffset`, `bIsCameraLockedOnEnemy`, `lockedOnActor`, …)
+
+**Posture tuning** (optional feel): select **`FighterCombat`** → **Combat Sim** / **Combat Sim | Posture**:
+
+- **Sim Tick Rate**
 - **Posture Base Frames Delay**
 - **Posture Bonus Frames Delay**
 - **Posture Penalty Per Change**
 - **Posture Max Penalty**
 - **Posture Reset Frames**
 
-Also **Sim Tick Rate** under **Combat Sim**.
+**Lock-on tuning** (optional): select **`LockOnCamera`** → **Lock On**:
 
-### Kick still bound to the same input tag (real conflict)
+- **Targeting Height Offset**
+- **Lock On Max Distance**
+- **Lock On FOV Degrees** (unused by filter today; screen projection is used)
 
-Both player BPs still reference:
+If a Blueprint graph needs lock state, use character pures (**Camera** category):
 
-- `AbilityInputMappings`
-- `GA_Kick`
-- `InputTag.LightAttack`
-
-And `DA_PlayerInputConfig` maps **IA_LightAttack** → **InputTag.LightAttack**.
-
-C++ sends that tag to the **sim**, but Kick may still be **granted** via Ability Input Mappings. In **`BP_PlayerCharacter`** Details → **Abilities** → **Ability Input Mappings**: remove any row that pairs **`GA_Kick`** with **`InputTag.LightAttack`** (or stop granting Kick for now). Otherwise Kick and sim light attack fight.
-
-Keep **InputConfig** = `DA_PlayerInputConfig` so Enhanced Input still fires the tag.
-
-### Input component class
-
-`BP_PlayerCharacter` already has **Override Input Component Class** = `PurgatoriumLexInputComponent`.  
-`Config/DefaultInput.ini` **DefaultInputComponentClass** is also set to `/Script/PurgatoriumLex.PurgatoriumLexInputComponent` (not plain `EnhancedInputComponent`), so tag binding helpers work even if a pawn forgets the override.
+- **Is Camera Locked On Enemy**
+- **Is Camera Locked On Character Back**
+- **Get Locked On Actor**
 
 ---
 
-## 5. Optional — buffer / leftovers
+## E. Posture AnimBP — verify, don’t rebuild
 
-| Item | Facts |
-|------|--------|
-| Bufferable tags | If the BP leaves **Bufferable Input Tags** empty, C++ BeginPlay defaults to **Roll only** |
-| Kick / SelfDamage assets | Can remain in Content; not required for sim light attack |
-| `InputTag.Dash` in `DA_PlayerInputConfig` | Present in the Data Asset strings; **no** matching C++ tag in `PurgatoriumLexGameplayTags` — ignore or clean later |
+`BP_PlayerCharacter` already points at **`ABP_Posture`**.
+
+1. PIE or open **`ABP_Posture`**.
+2. Confirm upper-body tilt follows character **`ActualPosture`** (`Combat Sim | Presentation`, read-only; C++ overwrites it each tick).
+3. Only if tilt is wrong: follow [PostureShoulderAnimationSetup.md](PostureShoulderAnimationSetup.md).  
+   **Do not** write `ActualPosture` from Blueprint.
 
 ---
 
-## 6. Smoke test (PIE)
+## F. Smoke test (PIE)
 
-Use GameMode default pawn (**`BP_PlayerCharacter`**).
+Play with the GameMode default pawn (`BP_PlayerCharacter`).
 
 | Check | Expect |
 |-------|--------|
-| Output Log | `[Sim] LightAttack START…` on press (and missing-row / missing-MoveSet warnings if data incomplete) |
-| Montage | Plays only if MoveSet row has **Montage** and **Auto Play Sim Attack Montage** is true |
-| Lock-on | Toggle lock; camera tracks; fighting IMC still switches on lock |
-| Passive posture | Locked on back + move → `ActualPosture` / `ABP_Posture` tilt |
-| Active posture | Posture action overrides while locked on back |
+| Light attack | Log contains `[Sim] LightAttack START` |
+| With MoveSet + Montage + Auto Play on | Montage plays |
+| MoveSet empty / missing row | Warning + fallback timings |
+| Lock-on | Toggle lock; camera tracks; fighting IMC still switches |
+| Posture | Lock on back + move/posture stick → tilt via `ActualPosture` |
 
 ---
 
-## Not required for this PR
+## Not required now
 
-- Hitbox Blueprints / AnimNotifies as combat **authority**
+- Hitbox / AnimNotify as combat **authority**
 - New Gameplay Ability graphs for light attack
-- GGPO / network settings
-- Rewiring roll / tech / charge (still on character)
+- GGPO settings
+- Rewiring roll / tech / charge
