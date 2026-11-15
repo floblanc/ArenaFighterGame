@@ -7,102 +7,26 @@
 #include "Input/PurgatoriumLexInputConfig.h"
 #include "PurgatoriumLexGameplayTags.h"
 #include "GameplayTagContainer.h"
+#include "Combat/CombatTypes.h"
+#include "Characters/PlayerCharacterTypes.h"
 #include "PlayerCharacter.generated.h"
 
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
 class UPurgatoriumLexInputComponent;
+class UFighterCombatComponent;
+class ULockOnCameraComponent;
+class UAnimMontage;
+class UInputMappingContext;
+class UEnhancedInputComponent;
 struct FInputActionValue;
 struct FGameplayTag;
 
-// ============================================================================
-// ENUMS
-// ============================================================================
-
-UENUM(BlueprintType)
-enum class EMovementState : uint8
-{
-    E_Idle		UMETA(DisplayName = "IDLE"),
-    E_Walking	UMETA(DisplayName = "WALKING"),
-    E_Running	UMETA(DisplayName = "RUNNING"),
-    E_Rolling	UMETA(DisplayName = "ROLLING"),
-    E_Hitting	UMETA(DisplayName = "HITTING"),
-    E_Other		UMETA(DisplayName = "OTHER"),
-};
-
-UENUM(BlueprintType)
-enum class EPosture : uint8
-{
-    E_Neutral	UMETA(DisplayName = "NEUTRAL"),
-    E_Up		UMETA(DisplayName = "UP"),
-    E_Down		UMETA(DisplayName = "DOWN"),
-    E_Left		UMETA(DisplayName = "LEFT"),
-    E_Right		UMETA(DisplayName = "RIGHT"),
-    // E_UpLeft	UMETA(DisplayName = "UPLEFT"),
-    // E_UpRight	UMETA(DisplayName = "UPRIGHT"),
-    E_DownLeft	UMETA(DisplayName = "DOWNLEFT"),
-    E_DownRight	UMETA(DisplayName = "DOWNRIGHT"),
-};
-
-UENUM(BlueprintType)
-enum class ETechType : uint8
-{
-    E_Standard	UMETA(DisplayName = "STANDARD"),
-    E_RollForward	UMETA(DisplayName = "ROLL FORWARD"),
-    E_RollBackward	UMETA(DisplayName = "ROLL BACKWARD"),
-    E_RollLeft	UMETA(DisplayName = "ROLL LEFT"),
-    E_RollRight	UMETA(DisplayName = "ROLL RIGHT"),
-    E_Wall		UMETA(DisplayName = "WALL"),
-    E_WallJump	UMETA(DisplayName = "WALL JUMP"),
-};
+// EPosture → Combat/CombatTypes.h
+// EMovementState / ETechType / ability buffer structs → Characters/PlayerCharacterTypes.h
 
 DECLARE_LOG_CATEGORY_EXTERN(LogTemplateCharacter, Log, All);
-
-// ============================================================================
-// STRUCTS
-// ============================================================================
-
-/** Maps a Gameplay Ability to an Input Tag. Used to grant abilities and bind them to input in one place. */
-USTRUCT(BlueprintType)
-struct FAbilityInputMapping
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability")
-	TSubclassOf<class UGameplayAbility> AbilityClass;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ability", Meta = (Categories = "InputTag"))
-	FGameplayTag InputTag;
-};
-
-/** Single entry in the ability input buffer. Frame-based for client-side feel improvement.
- *  NOTE: Client-side only - not replicated. Server only sees successful activations (handled by GAS). */
-USTRUCT(BlueprintType)
-struct FBufferedAbilityInput
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
-	FGameplayTag InputTag;
-
-	/** Frame number when this input was buffered (for deterministic expiry calculation). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input Buffer")
-	int32 BufferedFrame = 0;
-
-	FBufferedAbilityInput() = default;
-	FBufferedAbilityInput(const FGameplayTag& Tag, int32 Frame) : InputTag(Tag), BufferedFrame(Frame) {}
-
-	/** Calculate frames remaining based on current frame and buffer duration. */
-	int32 GetFramesRemaining(int32 CurrentFrame, int32 BufferFrames) const
-	{
-		return FMath::Max(0, BufferFrames - (CurrentFrame - BufferedFrame));
-	}
-};
-
-// ============================================================================
-// CLASS DECLARATION
-// ============================================================================
 
 UCLASS()
 class PURGATORIUMLEX_API APlayerCharacter : public APurgatoriumLexCharacterBase
@@ -138,6 +62,42 @@ public:
 
 	/** Returns FollowCamera subobject **/
 	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	/**
+	 * Fixed-tick combat sim (posture + light attack). Single combat authority for netcode basics.
+	 * Tune delays / move set on this component — not duplicated on the character.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat Sim")
+	TObjectPtr<UFighterCombatComponent> FighterCombat;
+
+	/** If true, play montage from LightAttackMoveSet when sim starts an attack. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat Sim")
+	bool bAutoPlaySimAttackMontage = true;
+
+	/**
+	 * Lock-on / camera-on-back (presentation). Not combat authority — see LockOnCameraComponent.
+	 * Boom + FollowCamera stay on this pawn for attachment; lock rules live on the component.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	TObjectPtr<ULockOnCameraComponent> LockOnCamera;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	bool IsCameraLockedOnEnemy() const;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	bool IsCameraLockedOnCharacterBack() const;
+
+	UFUNCTION(BlueprintPure, Category = "Camera")
+	AActor* GetLockedOnActor() const;
+
+	UFUNCTION(BlueprintPure, Category = "Character Info")
+	int32 GetTeamId() const { return TeamId; }
+
+	UFUNCTION(BlueprintCallable, Category = "Character Info")
+	void SetTeamId(int32 InTeamId) { TeamId = InTeamId; }
+
+	UFUNCTION(BlueprintPure, Category = "Character Info")
+	bool IsEnemyPlayer(const APlayerCharacter* Other) const;
 
 	// ========================================================================
 	// PUBLIC FUNCTIONS - INPUT HANDLERS
@@ -189,7 +149,7 @@ public:
 
 	/** Get duration multiplier based on current posture staling penalty (1.0 = fresh, increases with penalty). */
 	UFUNCTION(BlueprintPure, Category = "Posture Staling")
-	float GetPostureDurationMultiplier() const { return 1.0f + PostureStalePenalty; }
+	float GetPostureDurationMultiplier() const;
 
 	/** Get intangibility delay in frames for posture changes (0 = fresh, 4 = fully stale). */
 	UFUNCTION(BlueprintPure, Category = "Posture Staling")
@@ -358,26 +318,15 @@ protected:
 	// POSTURE SYSTEM
 	// ========================================================================
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
+	/**
+	 * Presentation mirror of sim posture for AnimBP (read-only in practice).
+	 * Authority: FighterCombat sim. Do not write this from Blueprint — it is overwritten each tick.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat Sim|Presentation")
 	EPosture ActualPosture;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement")
 	bool bIsPostureActionActive;
-
-	/** Base delay in frames before posture change is applied (frame-based for rollback compatibility). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
-	int32 PostureBaseFramesDelay = 3;
-
-	/** Bonus delay in frames added to base delay (can be modified at runtime, e.g. from abilities/status effects). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Movement", Meta = (ClampMin = "0"))
-	int32 PostureBonusFramesDelay = 0;
-
-	/** Pending posture change: target posture and frame when change was requested. */
-	EPosture PendingPosture = EPosture::E_Neutral;
-	int32 PostureChangeRequestFrame = -1;
-
-	void HandlePostureInputY(float Value);
-	void HandlePostureInputX(float Value);
 
 	// ========================================================================
 	// ROLL STALING SYSTEM
@@ -405,29 +354,6 @@ protected:
 	/** Number of frames without dodging before penalty resets (frame-based for rollback compatibility). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Roll Staling", Meta = (ClampMin = "1"))
 	int32 RollResetFrames = 60; // ~1 second at 60fps
-
-	// ========================================================================
-	// POSTURE STALING SYSTEM
-	// ========================================================================
-	
-	/** Constant penalty per posture change. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
-	float PosturePenalty = 0.08f;
-
-	/** Maximum accumulated penalty (caps at this value). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "0.0"))
-	float PostureMaxPenaltyValue = 0.5f;
-
-	/** Current accumulated posture staling penalty (0.0 = fresh, increases with each posture change). */
-	UPROPERTY(BlueprintReadOnly, Category = "Posture Staling")
-	float PostureStalePenalty = 0.0f;
-
-	/** Frame number when last posture change was performed (for deterministic reset calculation). */
-	int32 LastPostureChangeFrame = -1;
-
-	/** Number of frames without posture changes before penalty resets (frame-based for rollback compatibility). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Posture Staling", Meta = (ClampMin = "1"))
-	int32 PostureResetFrames = 60; // ~1 second at 60fps
 
 	// ========================================================================
 	// COMBAT & ACTIONS
@@ -538,53 +464,18 @@ protected:
 	virtual void NotifyHit(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit) override;
 
 	// ========================================================================
-	// CAMERA & LOCK-ON SYSTEM
-	// ========================================================================
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	bool bIsCameraLockedOnEnemy;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	bool bIsCameraLockedOnCharacterBack;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	TArray<AActor*> lockOnCandidates;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	AActor* lockedOnActor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement")
-	float targetingHeighOffset;
-
-	/** Lock-on: max distance. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "100", ClampMax = "5000"))
-	float LockOnMaxDistance = 2000.f;
-
-	/** Lock-on: half-angle in degrees from camera view (unused when using screen projection). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Movement", Meta = (ClampMin = "5", ClampMax = "90"))
-	float LockOnFOVDegrees = 45.f;
-
-	void LockUnlockCameraOnEnemy();
-
-	/** Update camera lock-on logic - called deterministically for rollback compatibility */
-	void UpdateCameraLockOn();
-
-	/** Fills lockOnCandidates with enemy players in range. Call before picking a lock-on target. */
-	void RefreshLockOnCandidates();
-
-	// ========================================================================
 	// HEALTH & CHARACTER INFO
 	// ========================================================================
 	
-	/** The amount of health the player currently has */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	/** Deprecated: use AttributeSet Health. Kept so old BPs do not hard-fail on missing property. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health", meta = (DeprecatedProperty, DeprecationMessage = "Use AttributeSet Health / HUD bindings instead of playerHealth."))
 	float playerHealth;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int TeamId;
+	int32 TeamId = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Info")
-	int PlayerNumber;
+	int32 PlayerNumber = 0;
 
 	// ========================================================================
 	// PROTECTED HELPER FUNCTIONS
@@ -605,20 +496,22 @@ private:
 	// PRIVATE POSTURE HELPERS
 	// ========================================================================
 	
-	/** Request a posture change with frame delay. Returns true if change was queued, false if one is already pending. */
+	/** Forward posture request to the combat sim (presentation still reads ActualPosture). */
 	bool RequestPostureChange(EPosture TargetPosture);
-	
-	/** Process pending posture change in Tick - applies change when delay elapses. */
-	void ProcessPendingPostureChange();
 
-	// ========================================================================
-	// PRIVATE CAMERA HELPERS
-	// ========================================================================
-	
-	void LockCameraOnCharacterBack();
-	
-	UFUNCTION(BlueprintCallable)
-	void UnlockCharacterBackFromCamera();
+	/** Sync ActualPosture / attack bools from FighterCombat. */
+	void SyncPresentationFromCombatSim();
+
+	UFUNCTION()
+	void HandleSimLightAttackStarted(EPosture SnapshotPosture, UAnimMontage* Montage, int32 SimFrame);
+
+	UFUNCTION()
+	void HandleLockOnEnemyChanged(bool bLockedOnEnemy, AActor* LockedActor);
+
+	UFUNCTION()
+	void HandleLockOnBackChanged(bool bLockedOnBack);
+
+	void LockUnlockCameraOnEnemy();
 
 	// ========================================================================
 	// PRIVATE COMBAT HELPERS
@@ -645,16 +538,6 @@ private:
 
 	/** Determine tech type based on input direction and contact type. */
 	ETechType DetermineTechType(bool bIsWallContact, float InputForward, float InputRight) const;
-
-	// ========================================================================
-	// PRIVATE UTILITY FUNCTIONS
-	// ========================================================================
-	
-	bool IsEnemy(int id);
-	bool IsEnemy(APlayerCharacter *fighter);
-
-	int  GetTeamId();
-	void SetTeamId(int teamId);
 
 	// ========================================================================
 	// PRIVATE MEMBER VARIABLES

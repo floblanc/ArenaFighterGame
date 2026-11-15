@@ -1,5 +1,10 @@
 # Roll Staling Mechanics (Super Smash Bros. Ultimate)
 
+> **What this file is:** SSBU **reference** notes.  
+> **What the project has:** A **partial port on `APlayerCharacter`** (`RollStalePenalty`, min/max increment, ~60-frame idle reset via `SimulationFrame`). It is **not** in `FFighterCombatSim`.  
+> **Roadmap:** Do not expand roll staling until after the light-attack hit/block slice (`PlayerCharacter_Decomposition.md` Phase C).  
+> Numbers below are Smash wiki-style; compare to C++ defaults (`RollMinPenalty=0.06`, `RollMaxPenalty=0.1`, `RollMaxPenaltyValue=0.5`) before treating them as shipped balance.
+
 ## Overview
 
 In **Super Smash Bros. Ultimate**, rolls (and all dodges) have a **staling system** that penalizes repeated use. Unlike the Stale Moves system for attacks (which affects damage/knockback), **dodge staling** affects:
